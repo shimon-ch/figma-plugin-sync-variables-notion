@@ -1,0 +1,16 @@
+{
+  "name": "Design Tokens Notion Sync",
+  "id": "1544239009059581298",
+  "api": "1.0.0",
+  "main": "dist/code.iife.js",
+  "ui": "dist/ui.html",
+  "editorType": ["figma"],
+  "networkAccess": {
+    "allowedDomains": [
+      "https://*.workers.dev"
+    ],
+    "reasoning": "Cloudflare Workers経由でNotion APIと通信するため、Workersドメインへのアクセスが必要です。"
+  },
+  "documentAccess": "dynamic-page",
+  "capabilities": []
+}
