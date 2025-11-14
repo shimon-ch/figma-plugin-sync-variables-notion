@@ -230,18 +230,6 @@ const ImportTab = () => {
           }
       }
     }, '*');
-
-      // ローディング状態を設定（必ず最後に設定してUI反映を確実に）
-      if (importTimeoutRef.current) {
-        clearTimeout(importTimeoutRef.current);
-      }
-      setIsLoading(true);
-      setStatus({ type: 'info', text: 'インポートを開始しました...' });
-      importTimeoutRef.current = window.setTimeout(() => {
-        setIsLoading(false);
-        setStatus({ type: 'error', text: 'インポートがタイムアウトしました。通信状況を確認してください。' });
-        importTimeoutRef.current = null;
-      }, 30000);
     } catch (err) {
       setIsLoading(false);
       setStatus({ type: 'error', text: err instanceof Error ? err.message : 'Notionデータ取得に失敗しました。' });
