@@ -7,22 +7,26 @@ import { logger } from './logger';
 /**
  * APIキーを難読化（基本的な保護）
  * 注意: これは完全なセキュリティではなく、基本的な保護のみ
+ * Figmaプラグイン環境ではbtoaが使えないため、シンプルなXOR暗号化のみ
  */
 export function obfuscateApiKey(apiKey: string): string {
   if (!apiKey) return '';
   
-  // Base64エンコード + 簡単なXOR暗号化
-  const encoded = btoa(apiKey);
-  const key = 'FigmaNotionSync2024';
-  let result = '';
-  
-  for (let i = 0; i < encoded.length; i++) {
-    result += String.fromCharCode(
-      encoded.charCodeAt(i) ^ key.charCodeAt(i % key.length)
-    );
+  try {
+    const key = 'FigmaNotionSync2024';
+    let result = '';
+    
+    for (let i = 0; i < apiKey.length; i++) {
+      // XOR暗号化して16進数に変換
+      const charCode = apiKey.charCodeAt(i) ^ key.charCodeAt(i % key.length);
+      result += charCode.toString(16).padStart(2, '0');
+    }
+    
+    return result;
+  } catch (error) {
+    logger.error('Failed to obfuscate API key:', error);
+    return apiKey; // フォールバック：そのまま返す
   }
-  
-  return btoa(result);
 }
 
 /**
@@ -32,20 +36,21 @@ export function deobfuscateApiKey(obfuscatedKey: string): string {
   if (!obfuscatedKey) return '';
   
   try {
-    const decoded = atob(obfuscatedKey);
     const key = 'FigmaNotionSync2024';
     let result = '';
     
-    for (let i = 0; i < decoded.length; i++) {
-      result += String.fromCharCode(
-        decoded.charCodeAt(i) ^ key.charCodeAt(i % key.length)
-      );
+    // 16進数をデコード
+    for (let i = 0; i < obfuscatedKey.length; i += 2) {
+      const hexChar = obfuscatedKey.substring(i, i + 2);
+      const charCode = parseInt(hexChar, 16);
+      const originalChar = charCode ^ key.charCodeAt((i / 2) % key.length);
+      result += String.fromCharCode(originalChar);
     }
     
-    return atob(result);
+    return result;
   } catch (error) {
     logger.error('Failed to deobfuscate API key:', error);
-    return '';
+    return obfuscatedKey; // フォールバック：そのまま返す
   }
 }
 

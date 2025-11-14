@@ -2,7 +2,6 @@ import { useState, useEffect, FormEvent, useRef } from 'react';
 import { fetchNotionData, fetchNotionPage } from '../services/notionProxy';
 import { transformNotionResponse } from '../services/notionTransform';
 import { ImportSettings, FieldMapping, NotionVariable } from '../../shared/types';
-import { logger } from '../../shared/logger';
 import FieldMappingEditor from './FieldMappingEditor';
 
 interface Collection {
@@ -16,8 +15,9 @@ const ImportTab = () => {
   const [databaseId, setDatabaseId] = useState('');
   const [proxyUrl, setProxyUrl] = useState('');
   const [collectionName, setCollectionName] = useState('Design Tokens');
-  const [collectionMode, setCollectionMode] = useState<'new' | 'existing'>('new');
-  const [overwriteExisting, setOverwriteExisting] = useState(false);
+  const [collectionMode, setCollectionMode] = useState<'new' | 'existing'>('existing');
+  const [overwriteExisting, setOverwriteExisting] = useState(true);
+  const [deleteRemovedVariables, setDeleteRemovedVariables] = useState(false);
   const [proxyToken, setProxyToken] = useState('');
   const [mappings, setMappings] = useState<FieldMapping[]>([
     { notionField: 'Name', variableProperty: 'name' },
@@ -30,6 +30,7 @@ const ImportTab = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const importTimeoutRef = useRef<number | null>(null);
+  const hasLoadedDataRef = useRef(false);
 
   // 初期データを受信
   useEffect(() => {
@@ -37,32 +38,24 @@ const ImportTab = () => {
       const msg = event.data.pluginMessage;
       if (!msg) return;
       
-      logger.log('[ImportTab] Received message:', msg.type);
-      
-      if (msg.type === 'INIT_DATA' && msg.savedData) {
-        logger.log('[ImportTab] Loading saved data:', msg.savedData);
+      if (msg.type === 'INIT_DATA') {
+        if (msg.collections) {
+          setCollections(msg.collections || []);
+        }
         
-        if (msg.savedData.notion_api_key) {
-          setApiKey(msg.savedData.notion_api_key);
+        if (msg.savedData) {
+          if (msg.savedData.notion_api_key) setApiKey(msg.savedData.notion_api_key);
+          if (msg.savedData.notion_database_id) setDatabaseId(msg.savedData.notion_database_id);
+          if (msg.savedData.collection_name) setCollectionName(msg.savedData.collection_name);
+          if (msg.savedData.collection_mode) setCollectionMode(msg.savedData.collection_mode);
+          if (msg.savedData.overwrite_existing !== undefined) setOverwriteExisting(msg.savedData.overwrite_existing);
+          if ((msg.savedData as any).delete_removed_variables !== undefined) setDeleteRemovedVariables((msg.savedData as any).delete_removed_variables);
+          if ((msg.savedData as any).notion_proxy_url) setProxyUrl((msg.savedData as any).notion_proxy_url);
+          if ((msg.savedData as any).notion_proxy_token) setProxyToken((msg.savedData as any).notion_proxy_token);
         }
-        if (msg.savedData.notion_database_id) {
-          setDatabaseId(msg.savedData.notion_database_id);
-        }
-        if (msg.savedData.collection_name) {
-          setCollectionName(msg.savedData.collection_name);
-        }
-        if (msg.savedData.collection_mode) {
-          setCollectionMode(msg.savedData.collection_mode);
-        }
-        if (msg.savedData.overwrite_existing !== undefined) {
-          setOverwriteExisting(msg.savedData.overwrite_existing);
-        }
-        if ((msg.savedData as any).notion_proxy_url) {
-          setProxyUrl((msg.savedData as any).notion_proxy_url);
-        }
-        if ((msg.savedData as any).notion_proxy_token) {
-          setProxyToken((msg.savedData as any).notion_proxy_token);
-        }
+        
+        // データ読み込み完了フラグを立てる
+        hasLoadedDataRef.current = true;
       }
       
       if (msg.type === 'COLLECTIONS_DATA' && msg.data) {
@@ -108,53 +101,39 @@ const ImportTab = () => {
       }
       
       if (msg.type === 'LOAD_DATA_RESPONSE' && msg.data) {
-        logger.log('[ImportTab] Loading data response:', msg.data);
+        if (msg.data.notion_api_key) setApiKey(msg.data.notion_api_key);
+        if (msg.data.notion_database_id) setDatabaseId(msg.data.notion_database_id);
+        if (msg.data.collection_name) setCollectionName(msg.data.collection_name);
+        if (msg.data.collection_mode) setCollectionMode(msg.data.collection_mode);
+        if (msg.data.overwrite_existing !== undefined) setOverwriteExisting(msg.data.overwrite_existing);
+        if ((msg.data as any).delete_removed_variables !== undefined) setDeleteRemovedVariables((msg.data as any).delete_removed_variables);
+        if ((msg.data as any).notion_proxy_url) setProxyUrl((msg.data as any).notion_proxy_url);
+        if ((msg.data as any).notion_proxy_token) setProxyToken((msg.data as any).notion_proxy_token);
         
-        if (msg.data.notion_api_key) {
-          setApiKey(msg.data.notion_api_key);
-        }
-        if (msg.data.notion_database_id) {
-          setDatabaseId(msg.data.notion_database_id);
-        }
-        if (msg.data.collection_name) {
-          setCollectionName(msg.data.collection_name);
-        }
-        if (msg.data.collection_mode) {
-          setCollectionMode(msg.data.collection_mode);
-        }
-        if (msg.data.overwrite_existing !== undefined) {
-          setOverwriteExisting(msg.data.overwrite_existing);
-        }
-        if ((msg.data as any).notion_proxy_url) {
-          setProxyUrl((msg.data as any).notion_proxy_url);
-        }
-        if ((msg.data as any).notion_proxy_token) {
-          setProxyToken((msg.data as any).notion_proxy_token);
-        }
+        // データ読み込み完了フラグを立てる
+        hasLoadedDataRef.current = true;
       }
     };
     
     window.addEventListener('message', handleMessage);
-    
-    // 起動時にデータを要求
-      parent.postMessage({
-        pluginMessage: { type: 'LOAD_DATA' }
-      }, '*');
-    
     return () => window.removeEventListener('message', handleMessage);
   }, []);
 
-  // 入力値が変更されたときに保存
+  // 入力値を保存する関数
   const saveFormData = () => {
-    const dataToSave = {
-      notion_api_key: apiKey,
-      notion_database_id: databaseId,
+    // 空の値は送信しない（空文字列で既存の値を上書きしないため）
+    const dataToSave: any = {
       collection_name: collectionName,
       collection_mode: collectionMode,
       overwrite_existing: overwriteExisting,
-      notion_proxy_url: proxyUrl,
-      notion_proxy_token: proxyToken
+      delete_removed_variables: deleteRemovedVariables,
     };
+    
+    // 空でない値のみ追加
+    if (apiKey && apiKey.trim()) dataToSave.notion_api_key = apiKey;
+    if (databaseId && databaseId.trim()) dataToSave.notion_database_id = databaseId;
+    if (proxyUrl && proxyUrl.trim()) dataToSave.notion_proxy_url = proxyUrl;
+    if (proxyToken && proxyToken.trim()) dataToSave.notion_proxy_token = proxyToken;
     
     parent.postMessage({
       pluginMessage: {
@@ -164,18 +143,26 @@ const ImportTab = () => {
     }, '*');
   };
 
-  // 各入力フィールドの変更時に保存
+  // 各入力フィールドの変更時に自動保存
   useEffect(() => {
-    if (apiKey || databaseId) {
-        saveFormData();
+    // 初期データ読み込み完了後のみ保存
+    if (!hasLoadedDataRef.current) {
+      return;
     }
-  }, [apiKey, databaseId, collectionName, collectionMode, overwriteExisting, proxyUrl, proxyToken]);
+    saveFormData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiKey, databaseId, collectionName, collectionMode, overwriteExisting, deleteRemovedVariables, proxyUrl, proxyToken]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
     if (!apiKey || !databaseId) {
       alert('必須項目を入力してください');
+      return;
+    }
+    
+    if (collectionMode === 'existing' && !collectionName) {
+      alert('既存のコレクションを選択してください');
       return;
     }
 
@@ -205,7 +192,7 @@ const ImportTab = () => {
       }, proxyToken);
       
       // Notion query の標準レスポンスは { results: [...] }
-      const raw = (notionResponse && (notionResponse.results || notionResponse.data || notionResponse.variables)) || [];
+      const raw = notionResponse?.results || [];
 
       // 変換ロジックを専用モジュールで実行
       const variables = await transformNotionResponse(raw, apiKey, proxyUrl, proxyToken, fetchNotionPage);
@@ -215,15 +202,16 @@ const ImportTab = () => {
       }
 
       const settings: ImportSettings & { variables: NotionVariable[] } = {
-      apiKey: apiKey,
-      notionApiKey: apiKey,
-      databaseId,
-      collectionName,
-      createNewCollection: collectionMode === 'new',
-      overwriteExisting,
+        apiKey: apiKey,
+        notionApiKey: apiKey,
+        databaseId,
+        collectionName,
+        createNewCollection: collectionMode === 'new',
+        overwriteExisting,
+        deleteRemovedVariables,
         mappings,
         variables
-    };
+      };
 
     // フォームデータを含めて送信
     parent.postMessage({
@@ -236,10 +224,12 @@ const ImportTab = () => {
           collection_name: collectionName,
           collection_mode: collectionMode,
             overwrite_existing: overwriteExisting,
-            notion_proxy_url: proxyUrl
+            delete_removed_variables: deleteRemovedVariables,
+            notion_proxy_url: proxyUrl,
+            notion_proxy_token: proxyToken
           }
-        }
-      }, '*');
+      }
+    }, '*');
 
       // ローディング状態を設定（必ず最後に設定してUI反映を確実に）
       if (importTimeoutRef.current) {
@@ -272,7 +262,8 @@ const ImportTab = () => {
               <span>Notion APIキー *</span>
           </label>
           <input
-            type="password"
+            type="text"
+            autoComplete="off"
               className="input input-sm input-bordered w-full"
               placeholder="ntn_xxxxxxxxxxxxx"
             value={apiKey}
@@ -320,7 +311,8 @@ const ImportTab = () => {
               <span>プロキシトークン（X-Proxy-Token）</span>
             </label>
             <input
-              type="password"
+              type="text"
+              autoComplete="off"
               className="input input-sm input-bordered w-full"
               placeholder="任意の共有シークレット"
               value={proxyToken}
@@ -403,6 +395,19 @@ const ImportTab = () => {
             />
               <span className="text-xs">既存のVariableを上書き</span>
           </label>
+        </div>
+        
+          <div className="form-control">
+            <label className="label">
+            <input
+              type="checkbox"
+                className="checkbox checkbox-primary checkbox-xs"
+              checked={deleteRemovedVariables}
+                onChange={(e) => { setDeleteRemovedVariables(e.target.checked); saveFormData(); }}
+            />
+              <span className="text-xs">Notionから削除された変数をFigmaからも削除</span>
+          </label>
+            <small className="text-xs text-warning ml-6">⚠️ この変数を参照しているコンポーネントの参照も解除されます</small>
         </div>
       </div>
       </section>

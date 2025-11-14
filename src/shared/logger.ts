@@ -34,23 +34,15 @@ function maskSensitiveData(args: any[]): any[] {
 
 export const logger = {
   log: (...args: any[]) => {
-    if (isDevelopment) {
-      console.log(...maskSensitiveData(args));
-    }
+    console.log(...maskSensitiveData(args));
   },
   error: (...args: any[]) => {
-    if (isDevelopment) {
-      console.error(...maskSensitiveData(args));
-    }
+    console.error(...maskSensitiveData(args));
   },
   warn: (...args: any[]) => {
-    if (isDevelopment) {
-      console.warn(...maskSensitiveData(args));
-    }
+    console.warn(...maskSensitiveData(args));
   },
   info: (...args: any[]) => {
-    if (isDevelopment) {
-      console.info(...maskSensitiveData(args));
-    }
+    console.info(...maskSensitiveData(args));
   }
 };

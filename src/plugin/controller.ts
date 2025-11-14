@@ -18,6 +18,7 @@ const STORAGE_KEYS = {
   COLLECTION_NAME: 'collection_name',
   COLLECTION_MODE: 'collection_mode',
   OVERWRITE: 'overwrite_existing',
+  DELETE_REMOVED: 'delete_removed_variables',
   PROXY_URL: 'notion_proxy_url',
   PROXY_TOKEN: 'notion_proxy_token',
   COLLECTION_ID: 'collection_id',
@@ -25,55 +26,78 @@ const STORAGE_KEYS = {
   PRESERVE_HIERARCHY: 'preserve_hierarchy'
 };
 
-// 保存関数（確実に動作するシンプルな実装）
+// 保存関数
 async function saveValue(key: string, value: any): Promise<void> {
   try {
-    logger.log(`💾 Attempting to save ${key}`);
-    
     // 値の型と内容をチェック
     if (value === undefined || value === null) {
-      logger.log(`⚠️ Skipping save for ${key}: value is undefined or null`);
+      logger.log(`⏭️  Skip save ${key}: undefined or null`);
+      return;
+    }
+    
+    // 空文字列もスキップ（既存の値を上書きしない）
+    const stringValue = String(value).trim();
+    if (stringValue === '') {
+      logger.log(`⏭️  Skip save ${key}: empty string`);
       return;
     }
     
     // 機密情報は難読化して保存
-    let stringValue = String(value);
+    let valueToSave = stringValue;
     const sensitiveKeys = [STORAGE_KEYS.API_KEY, STORAGE_KEYS.PROXY_TOKEN];
-    if (sensitiveKeys.includes(key) && stringValue) {
-      stringValue = obfuscateApiKey(stringValue);
-      logger.log(`🔒 Obfuscated sensitive data for ${key}`);
+    if (sensitiveKeys.includes(key)) {
+      try {
+        valueToSave = obfuscateApiKey(stringValue);
+        logger.log(`💾 Saving ${key}: [obfuscated]`);
+      } catch (obfuscateError) {
+        logger.error(`❌ Obfuscation failed for ${key}:`, obfuscateError);
+        throw obfuscateError;
+      }
+    } else {
+      logger.log(`💾 Saving ${key}: ${stringValue.substring(0, 20)}...`);
     }
     
-    await figma.clientStorage.setAsync(key, stringValue);
+    await figma.clientStorage.setAsync(key, valueToSave);
     logger.log(`✅ Saved ${key}`);
     
   } catch (error) {
     logger.error(`❌ Failed to save ${key}:`, error);
+    // エラーの詳細をログに出力
+    if (error instanceof Error) {
+      logger.error(`   Error message: ${error.message}`);
+      logger.error(`   Error stack: ${error.stack}`);
+    }
   }
 }
 
-// 読み込み関数（確実に動作するシンプルな実装）
+// 読み込み関数
 async function loadValue(key: string): Promise<string | null> {
   try {
-    logger.log(`📖 Attempting to load ${key}`);
     const value = await figma.clientStorage.getAsync(key);
     
     if (value !== undefined && value !== null) {
       let stringValue = String(value);
       
-      // 機密情報は復号化
-      const sensitiveKeys = [STORAGE_KEYS.API_KEY, STORAGE_KEYS.PROXY_TOKEN];
-      if (sensitiveKeys.includes(key) && stringValue) {
-        stringValue = deobfuscateApiKey(stringValue);
-        logger.log(`🔓 Deobfuscated sensitive data for ${key}`);
+      // 空文字列は無効な値として扱う
+      if (stringValue.trim() === '') {
+        logger.log(`📖 Load ${key}: empty (ignored)`);
+        return null;
       }
       
-      logger.log(`✅ Loaded ${key}`);
+      // 機密情報は復号化
+      const sensitiveKeys = [STORAGE_KEYS.API_KEY, STORAGE_KEYS.PROXY_TOKEN];
+      if (sensitiveKeys.includes(key)) {
+        stringValue = deobfuscateApiKey(stringValue);
+        logger.log(`📖 Load ${key}: [found & decrypted]`);
+      } else {
+        logger.log(`📖 Load ${key}: ${stringValue.substring(0, 20)}...`);
+      }
+      
       return stringValue;
-    } else {
-      logger.log(`⚠️ No value found for ${key}`);
-      return null;
     }
+    
+    logger.log(`📖 Load ${key}: not found`);
+    return null;
   } catch (error) {
     logger.error(`❌ Failed to load ${key}:`, error);
     return null;
@@ -82,132 +106,65 @@ async function loadValue(key: string): Promise<string | null> {
 
 // すべての保存データを読み込む
 async function loadAllData(): Promise<any> {
-  logger.log('📂 Loading all saved data...');
   const data: any = {};
   
-  // 各値を個別に読み込み（順番に、awaitを確実に待つ）
   const apiKey = await loadValue(STORAGE_KEYS.API_KEY);
-  if (apiKey) {
-    data.notion_api_key = apiKey;
-    logger.log('✓ Added notion_api_key to data');
-  }
+  if (apiKey) data.notion_api_key = apiKey;
   
   const databaseId = await loadValue(STORAGE_KEYS.DATABASE_ID);
-  if (databaseId) {
-    data.notion_database_id = databaseId;
-    logger.log('✓ Added notion_database_id to data');
-  }
+  if (databaseId) data.notion_database_id = databaseId;
   
   const collectionName = await loadValue(STORAGE_KEYS.COLLECTION_NAME);
-  if (collectionName) {
-    data.collection_name = collectionName;
-    logger.log('✓ Added collection_name to data');
-  }
+  if (collectionName) data.collection_name = collectionName;
   
   const collectionMode = await loadValue(STORAGE_KEYS.COLLECTION_MODE);
-  if (collectionMode) {
-    data.collection_mode = collectionMode;
-    logger.log('✓ Added collection_mode to data');
-  }
+  if (collectionMode) data.collection_mode = collectionMode;
   
   const overwrite = await loadValue(STORAGE_KEYS.OVERWRITE);
-  if (overwrite !== null) {
-    data.overwrite_existing = overwrite === 'true';
-    logger.log('✓ Added overwrite_existing to data');
-  }
+  if (overwrite !== null) data.overwrite_existing = overwrite === 'true';
+  
+  const deleteRemoved = await loadValue(STORAGE_KEYS.DELETE_REMOVED);
+  if (deleteRemoved !== null) data.delete_removed_variables = deleteRemoved === 'true';
   
   const collectionId = await loadValue(STORAGE_KEYS.COLLECTION_ID);
-  if (collectionId) {
-    data.collection_id = collectionId;
-    logger.log('✓ Added collection_id to data');
-  }
+  if (collectionId) data.collection_id = collectionId;
   
   const includeDesc = await loadValue(STORAGE_KEYS.INCLUDE_DESC);
-  if (includeDesc !== null) {
-    data.include_description = includeDesc === 'true';
-    logger.log('✓ Added include_description to data');
-  }
+  if (includeDesc !== null) data.include_description = includeDesc === 'true';
+  
   const proxyUrl = await loadValue(STORAGE_KEYS.PROXY_URL);
-  if (proxyUrl) {
-    data.notion_proxy_url = proxyUrl;
-    logger.log('✓ Added notion_proxy_url to data');
-  }
+  if (proxyUrl) data.notion_proxy_url = proxyUrl;
+  
   const proxyToken = await loadValue(STORAGE_KEYS.PROXY_TOKEN);
-  if (proxyToken) {
-    data.notion_proxy_token = proxyToken;
-    logger.log('✓ Added notion_proxy_token to data');
-  }
+  if (proxyToken) data.notion_proxy_token = proxyToken;
   
   const preserveHierarchy = await loadValue(STORAGE_KEYS.PRESERVE_HIERARCHY);
-  if (preserveHierarchy !== null) {
-    data.preserve_hierarchy = preserveHierarchy === 'true';
-    logger.log('✓ Added preserve_hierarchy to data');
-  }
+  if (preserveHierarchy !== null) data.preserve_hierarchy = preserveHierarchy === 'true';
   
-  logger.log('📂 Final loaded data:', JSON.stringify(data, null, 2));
   return data;
 }
 
 // データを保存する
 async function saveAllData(data: any): Promise<void> {
-  logger.log('💾 Starting to save data:', JSON.stringify(data, null, 2));
-  
-  // 各値を個別に保存（順番に、awaitを確実に待つ）
-  if (data.notion_api_key !== undefined) {
-    await saveValue(STORAGE_KEYS.API_KEY, data.notion_api_key);
-  }
-  if (data.notion_database_id !== undefined) {
-    await saveValue(STORAGE_KEYS.DATABASE_ID, data.notion_database_id);
-  }
-  if (data.collection_name !== undefined) {
-    await saveValue(STORAGE_KEYS.COLLECTION_NAME, data.collection_name);
-  }
-  if (data.collection_mode !== undefined) {
-    await saveValue(STORAGE_KEYS.COLLECTION_MODE, data.collection_mode);
-  }
-  if (data.overwrite_existing !== undefined) {
-    await saveValue(STORAGE_KEYS.OVERWRITE, data.overwrite_existing);
-  }
-  if (data.notion_proxy_url !== undefined) {
-    await saveValue(STORAGE_KEYS.PROXY_URL, data.notion_proxy_url);
-  }
-  if (data.notion_proxy_token !== undefined) {
-    await saveValue(STORAGE_KEYS.PROXY_TOKEN, data.notion_proxy_token);
-  }
-  if (data.collection_id !== undefined) {
-    await saveValue(STORAGE_KEYS.COLLECTION_ID, data.collection_id);
-  }
-  if (data.include_description !== undefined) {
-    await saveValue(STORAGE_KEYS.INCLUDE_DESC, data.include_description);
-  }
-  if (data.preserve_hierarchy !== undefined) {
-    await saveValue(STORAGE_KEYS.PRESERVE_HIERARCHY, data.preserve_hierarchy);
-  }
-  
-  logger.log('💾 Save complete - verifying by reloading...');
-  
-  // 保存後に確認のため再読み込み
-  const verifyData = await loadAllData();
-  logger.log('🔍 Verification after save:', JSON.stringify(verifyData, null, 2));
+  if (data.notion_api_key !== undefined) await saveValue(STORAGE_KEYS.API_KEY, data.notion_api_key);
+  if (data.notion_database_id !== undefined) await saveValue(STORAGE_KEYS.DATABASE_ID, data.notion_database_id);
+  if (data.collection_name !== undefined) await saveValue(STORAGE_KEYS.COLLECTION_NAME, data.collection_name);
+  if (data.collection_mode !== undefined) await saveValue(STORAGE_KEYS.COLLECTION_MODE, data.collection_mode);
+  if (data.overwrite_existing !== undefined) await saveValue(STORAGE_KEYS.OVERWRITE, data.overwrite_existing);
+  if (data.delete_removed_variables !== undefined) await saveValue(STORAGE_KEYS.DELETE_REMOVED, data.delete_removed_variables);
+  if (data.notion_proxy_url !== undefined) await saveValue(STORAGE_KEYS.PROXY_URL, data.notion_proxy_url);
+  if (data.notion_proxy_token !== undefined) await saveValue(STORAGE_KEYS.PROXY_TOKEN, data.notion_proxy_token);
+  if (data.collection_id !== undefined) await saveValue(STORAGE_KEYS.COLLECTION_ID, data.collection_id);
+  if (data.include_description !== undefined) await saveValue(STORAGE_KEYS.INCLUDE_DESC, data.include_description);
+  if (data.preserve_hierarchy !== undefined) await saveValue(STORAGE_KEYS.PRESERVE_HIERARCHY, data.preserve_hierarchy);
 }
 
 // 起動時の初期化
 async function initialize() {
   try {
-    logger.log('🚀 Plugin initialization started');
-    logger.log('⏰ Timestamp:', new Date().toISOString());
-    
-    // まず全てのストレージキーを確認
-    logger.log('🔑 Checking all storage keys...');
-    for (const [name, key] of Object.entries(STORAGE_KEYS)) {
-      const value = await figma.clientStorage.getAsync(key);
-      logger.log(`  ${name} (${key}):`, value !== undefined ? `"${value}"` : 'undefined');
-    }
-    
-    // 保存されたデータを読み込み
+    console.log('🚀 Plugin starting...');
     const savedData = await loadAllData();
-    
-    // コレクションを取得
+    console.log('📦 Loaded data:', savedData);
     const collections = await figma.variables.getLocalVariableCollectionsAsync();
     const collectionsData = collections.map(c => ({
       id: c.id,
@@ -216,21 +173,16 @@ async function initialize() {
       variableIds: c.variableIds
     }));
     
-    // 初期データをUIに送信
-    logger.log('📤 Sending initial data to UI');
-    logger.log('📤 Data being sent:', JSON.stringify(savedData, null, 2));
     figma.ui.postMessage({
       type: 'INIT_DATA',
       savedData: savedData,
       collections: collectionsData
     });
     
-    // コレクションデータも送信
     figma.ui.postMessage({
       type: MessageType.COLLECTIONS_DATA,
       data: { collections: collectionsData }
     });
-    
   } catch (error) {
     logger.error('❌ Initialization error:', error);
   }
@@ -238,16 +190,10 @@ async function initialize() {
 
 // メッセージハンドラー
 figma.ui.onmessage = async (msg: any) => {
-  logger.log('📨 Message received:', msg.type);
-  
   try {
     switch (msg.type) {
       case 'SAVE_DATA':
-        // UIから送られてきたデータを保存
-        logger.log('📝 SAVE_DATA request with data:', JSON.stringify(msg.data, null, 2));
         await saveAllData(msg.data);
-        
-        // 保存完了を通知
         figma.ui.postMessage({
           type: 'SAVE_COMPLETE',
           success: true
@@ -255,10 +201,7 @@ figma.ui.onmessage = async (msg: any) => {
         break;
         
       case 'LOAD_DATA':
-        // 保存されたデータを読み込んでUIに送信
-        logger.log('📖 LOAD_DATA request');
         const loadedData = await loadAllData();
-        logger.log('📖 Sending loaded data to UI:', JSON.stringify(loadedData, null, 2));
         figma.ui.postMessage({
           type: 'LOAD_DATA_RESPONSE',
           data: loadedData
@@ -266,12 +209,9 @@ figma.ui.onmessage = async (msg: any) => {
         break;
         
       case MessageType.IMPORT_FROM_NOTION:
-        // フォームデータを保存
         if (msg.formData) {
-          logger.log('💾 Saving form data before import');
           await saveAllData(msg.formData);
         }
-        // インポート処理
         await handleImportFromNotion(msg.data);
         break;
         
@@ -292,9 +232,6 @@ figma.ui.onmessage = async (msg: any) => {
       case MessageType.CLOSE_PLUGIN:
         figma.closePlugin();
         break;
-        
-      default:
-        logger.log('⚠️ Unknown message type:', msg.type);
     }
   } catch (error) {
     logger.error('❌ Message handler error:', error);
@@ -308,5 +245,4 @@ figma.ui.onmessage = async (msg: any) => {
 };
 
 // 初期化実行
-logger.log('🎯 Starting plugin...');
 initialize();
