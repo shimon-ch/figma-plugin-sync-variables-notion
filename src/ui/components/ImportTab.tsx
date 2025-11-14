@@ -383,32 +383,36 @@ const ImportTab = () => {
               />
               <span>既存のコレクションを使用</span>
             </label>
-        </div>
+          </div>
 
-          <div className="form-control">
-            <label className="label">
-            <input
-              type="checkbox"
-                className="checkbox checkbox-primary checkbox-xs"
-              checked={overwriteExisting}
-                onChange={(e) => { setOverwriteExisting(e.target.checked); saveFormData(); }}
-            />
-              <span className="text-xs">既存のVariableを上書き</span>
-          </label>
-        </div>
-        
-          <div className="form-control">
-            <label className="label">
-            <input
-              type="checkbox"
-                className="checkbox checkbox-primary checkbox-xs"
-              checked={deleteRemovedVariables}
-                onChange={(e) => { setDeleteRemovedVariables(e.target.checked); saveFormData(); }}
-            />
-              <span className="text-xs">Notionから削除された変数をFigmaからも削除</span>
-          </label>
-            <small className="text-xs text-warning ml-6">⚠️ この変数を参照しているコンポーネントの参照も解除されます</small>
-        </div>
+          {collectionMode === 'existing' && (
+            <>
+              <div className="form-control">
+                <label className="label">
+                <input
+                  type="checkbox"
+                    className="checkbox checkbox-primary checkbox-xs"
+                  checked={overwriteExisting}
+                    onChange={(e) => { setOverwriteExisting(e.target.checked); saveFormData(); }}
+                />
+                  <span className="text-xs">既存のVariableを上書き</span>
+              </label>
+            </div>
+            
+              <div className="form-control">
+                <label className="label">
+                <input
+                  type="checkbox"
+                    className="checkbox checkbox-primary checkbox-xs"
+                  checked={deleteRemovedVariables}
+                    onChange={(e) => { setDeleteRemovedVariables(e.target.checked); saveFormData(); }}
+                />
+                  <span className="text-xs">Notionから削除された変数をFigmaからも削除</span>
+              </label>
+                <small className="text-xs text-warning ml-6">⚠️ この変数を参照しているコンポーネントの参照も解除されます</small>
+            </div>
+            </>
+          )}
       </div>
       </section>
 
