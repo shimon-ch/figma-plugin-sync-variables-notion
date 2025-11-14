@@ -2,8 +2,7 @@
 import { 
   ImportSettings, 
   NotionVariable, 
-  MessageType,
-  VariableType 
+  MessageType
 } from '../../shared/types';
 import { logger } from '../../shared/logger';
 import { 
@@ -30,23 +29,41 @@ export async function handleImportFromNotion(settings: ImportSettings & { variab
       data: { message: 'Figma Variablesを作成中...' }
     });
     
-    logger.log('Import settings:', {
-      variablesCount: variables.length,
-      mappings: settings.mappings
-    });
+    logger.log('\n📋 Import settings:');
+    logger.log('  - Variables count:', variables.length);
+    logger.log('  - Collection name:', settings.collectionName);
+    logger.log('  - Create new collection:', settings.createNewCollection);
+    logger.log('  - Overwrite existing:', settings.overwriteExisting);
+    logger.log('  - Delete removed variables:', settings.deleteRemovedVariables || false);
+    logger.log('  - Mappings:', settings.mappings?.length || 0);
     
     // コレクションを作成または取得
     const collectionName = settings.collectionName || 'Design Tokens';
+    logger.log(`\n📦 Collection settings:`);
+    logger.log(`  - Name: "${collectionName}"`);
+    logger.log(`  - Create new: ${settings.createNewCollection}`);
+    
     const collection = await createVariableCollection(
       collectionName,
       settings.createNewCollection
     );
     
+    logger.log(`  - Using collection: "${collection.name}" (ID: ${collection.id})`);
+    logger.log(`  - Collection has ${collection.variableIds.length} variables`);
+    
     // 既存のVariablesを取得
     const existingVariables = await getExistingVariables(collection.id);
+    logger.log(`Found ${existingVariables.length} existing variables in collection`);
+    
     const existingVariableMap = new Map(
-      existingVariables.map(v => [`${v.group}/${v.name}`, v])
+      existingVariables.map(v => {
+        const key = v.group ? `${v.group}/${v.name}` : v.name;
+        logger.log(`  - Existing: "${key}" (type: ${v.type}, value: ${JSON.stringify(v.value)})`);
+        return [key, v];
+      })
     );
+    
+    logger.log(`\nStarting import with overwriteExisting: ${settings.overwriteExisting}`);
     
     let importedCount = 0;
     let skippedCount = 0;
@@ -62,17 +79,32 @@ export async function handleImportFromNotion(settings: ImportSettings & { variab
           ? `${variable.group}/${variable.name}`
           : variable.name;
         
+        logger.log(`\n[Processing] ${fullName}`);
+        logger.log(`  - Notion value: ${JSON.stringify(variable.value)}`);
+        logger.log(`  - Notion type: ${variable.type || 'undefined (will auto-detect)'}`);
+        
         // 既存のVariableがある場合
-        if (existingVariableMap.has(fullName)) {
+        const existingVar = existingVariableMap.get(fullName);
+        if (existingVar) {
+          logger.log(`  - Found in existingVariableMap`);
+          logger.log(`    - Existing value: ${JSON.stringify(existingVar.value)}`);
+          logger.log(`    - Existing type: ${existingVar.type}`);
+          
           if (!settings.overwriteExisting) {
+            logger.log(`  ⏭️  Skipping (overwrite disabled)`);
             skippedCount++;
             continue;
           }
+          logger.log(`  ✏️  Will overwrite`);
+        } else {
+          logger.log(`  - Not found in existingVariableMap, will create new`);
         }
         
         // 型の自動判定（必要な場合）
         if (!variable.type) {
-          variable.type = detectVariableType(variable.value);
+          const detectedType = detectVariableType(variable.value);
+          variable.type = detectedType;
+          logger.log(`  - Auto-detected type: ${detectedType}`);
         }
         
         // 参照 + フォールバック形式の暫定対応
@@ -83,6 +115,7 @@ export async function handleImportFromNotion(settings: ImportSettings & { variab
           const refVar = await findVariableByName(targetName);
           if (!refVar && fb) {
             // まずフォールバックで作成
+            logger.log(`  - Using fallback value: ${fb}`);
             const backup = { ...variable, value: fb };
             await updateVariable(collection, backup);
             importedCount++;
@@ -90,7 +123,15 @@ export async function handleImportFromNotion(settings: ImportSettings & { variab
           }
         }
 
+        logger.log(`  - Calling updateVariable with:`, {
+          name: variable.name,
+          group: variable.group,
+          type: variable.type,
+          value: variable.value
+        });
+        
         await updateVariable(collection, variable);
+        logger.log(`  ✅ updateVariable completed for ${fullName}`);
         importedCount++;
         
       } catch (error) {
@@ -111,14 +152,68 @@ export async function handleImportFromNotion(settings: ImportSettings & { variab
       }
     }
     
+    // 3パス目: Notionから削除された変数をFigmaからも削除（オプション）
+    let deletedCount = 0;
+    if (settings.deleteRemovedVariables) {
+      logger.log(`\n🗑️  Checking for variables to delete (deleteRemovedVariables: ${settings.deleteRemovedVariables})`);
+      
+      // Notionから取得した変数のフルネームセットを作成
+      const notionVariableNames = new Set(
+        variables.map(v => {
+          const fullName = v.group ? `${v.group}/${v.name}` : v.name;
+          return fullName;
+        })
+      );
+      
+      logger.log(`  - Notion variables count: ${notionVariableNames.size}`);
+      logger.log(`  - Notion variable names:`, Array.from(notionVariableNames).slice(0, 5).join(', ') + (notionVariableNames.size > 5 ? '...' : ''));
+      logger.log(`  - Existing variables in collection: ${existingVariables.length}`);
+      
+      // Figmaの変数を一度だけ取得
+      const figmaVars = await figma.variables.getLocalVariablesAsync();
+      const collectionVars = figmaVars.filter(v => v.variableCollectionId === collection.id);
+      logger.log(`  - Total Figma variables in this collection: ${collectionVars.length}`);
+      
+      // 既存変数の中で、Notionに存在しないものを削除
+      for (const figmaVar of collectionVars) {
+        const varName = figmaVar.name;
+        
+        if (!notionVariableNames.has(varName)) {
+          try {
+            logger.log(`  🗑️  Variable not in Notion: "${varName}"`);
+            logger.warn(`    ⚠️  Warning: Deleting this variable will break any references to it in your design`);
+            
+            figmaVar.remove();
+            deletedCount++;
+            logger.log(`    ✅ Deleted: "${varName}"`);
+          } catch (error) {
+            logger.error(`    ❌ Failed to delete "${varName}":`, error);
+          }
+        }
+      }
+      
+      if (deletedCount > 0) {
+        logger.log(`\n✅ Deleted ${deletedCount} variables not in Notion`);
+      } else {
+        logger.log(`\n✅ No variables to delete (all Figma variables exist in Notion)`);
+      }
+    } else {
+      logger.log(`\n⏭️  Skipping variable deletion (deleteRemovedVariables: ${settings.deleteRemovedVariables || false})`);
+    }
+    
     // 結果を通知（日本語・詳細）
+    const resultMessage = settings.deleteRemovedVariables
+      ? `インポート完了: 取り込み ${importedCount} 件 / スキップ ${skippedCount} 件 / 削除 ${deletedCount} 件 / エラー ${errorCount} 件 (合計 ${variables.length} 件)`
+      : `インポート完了: 取り込み ${importedCount} 件 / スキップ ${skippedCount} 件 / エラー ${errorCount} 件 (合計 ${variables.length} 件)`;
+    
     figma.ui.postMessage({
       type: MessageType.SUCCESS,
       data: {
-        message: `インポート完了: 取り込み ${importedCount} 件 / スキップ ${skippedCount} 件 / エラー ${errorCount} 件 (合計 ${variables.length} 件)`,
+        message: resultMessage,
         details: {
           imported: importedCount,
           skipped: skippedCount,
+          deleted: deletedCount,
           errors: errorCount,
           total: variables.length,
           importErrors

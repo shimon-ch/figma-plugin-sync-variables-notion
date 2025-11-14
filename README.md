@@ -212,6 +212,68 @@ sync-design-token-notion/
 - `dist/` は `.gitignore` 済みです。ビルド成果物に実値が焼き込まれても公開レポジトリにコミットされません。
 - ログ出力はセンシティブな値（APIキー・トークン）を含めない方針を維持してください。
 
+## 🐛 トラブルシューティング
+
+### CORSエラーが発生する場合
+
+エラーメッセージ:
+```
+Access to fetch at 'https://xxxx.workers.dev/' from origin 'null' has been blocked by CORS policy: 
+Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present
+```
+
+**解決方法:**
+
+1. **Cloudflare Workerのコードを確認**
+   - `cloudflare-worker-template.js`の最新版を使用していることを確認
+   - Workerのコードが正しくデプロイされているか確認
+
+2. **Workerを再デプロイ**
+   ```bash
+   # 1. Cloudflare Dashboardにログイン
+   # 2. Workers & Pages → あなたのWorkerを選択
+   # 3. 「Edit Code」をクリック
+   # 4. cloudflare-worker-template.js の内容を全てコピー＆ペースト
+   # 5. 「Save and Deploy」をクリック
+   ```
+
+3. **環境変数を確認**
+   - Cloudflare DashboardでWorkerの Settings → Variables
+   - `PROXY_TOKEN` が設定されていることを確認
+   - プラグインUIで入力する「プロキシトークン」と一致していることを確認
+
+4. **Workerの動作確認**
+   
+   ターミナルで以下のコマンドを実行して、Workerが正しく動作しているか確認：
+   ```bash
+   # OPTIONSリクエスト（プリフライト）のテスト
+   curl -X OPTIONS https://your-worker.workers.dev/ -i
+   
+   # 期待される結果:
+   # HTTP/2 204
+   # access-control-allow-origin: *
+   # access-control-allow-methods: GET, POST, OPTIONS
+   # access-control-allow-headers: Content-Type, Authorization, Notion-Version, Accept, X-Proxy-Token
+   ```
+
+5. **ブラウザのキャッシュをクリア**
+   - Figmaプラグインを一度閉じる
+   - Figmaを再起動
+   - プラグインを再度開く
+
+### 401 Unauthorizedエラーが発生する場合
+
+**解決方法:**
+- Cloudflare Workerの環境変数 `PROXY_TOKEN` とプラグインUIで入力した「プロキシトークン」が一致しているか確認
+- トークンの前後にスペースが入っていないか確認
+
+### Notion APIエラーが発生する場合
+
+**解決方法:**
+1. Notion APIキーが正しいか確認
+2. データベースにIntegrationが追加されているか確認（データベースページの「...」→「Connections」）
+3. データベースIDが正しいか確認（URLから32文字のID部分をコピー）
+
 ## 💡 技術スタック
 
 - **TypeScript**: 型安全な開発
