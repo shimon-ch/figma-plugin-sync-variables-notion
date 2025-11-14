@@ -37,8 +37,14 @@ export function detectVariableType(value: any): VariableType {
       return VariableType.COLOR;
     }
     
-    // 数値文字列の判定
+    // 数値文字列の判定（純粋な数値）
     if (!isNaN(Number(value)) && value.trim() !== '') {
+      return VariableType.NUMBER;
+    }
+    
+    // 単位付き数値の判定（例: 16px, 1.5rem, 24pt, 10%, 2em など）
+    const numberWithUnitPattern = /^-?[\d.]+\s*(px|rem|em|%|pt|vh|vw|vmin|vmax|ch|ex|cm|mm|in|pc|deg|rad|turn|s|ms)$/i;
+    if (numberWithUnitPattern.test(value.trim())) {
       return VariableType.NUMBER;
     }
     
@@ -140,19 +146,75 @@ export async function createVariableCollection(
 ): Promise<VariableCollection> {
   const collections = await figma.variables.getLocalVariableCollectionsAsync();
   
-  if (!createNew) {
-    const existing = collections.find(c => c.name === name);
+  logger.log(`\n[createVariableCollection] Searching for collection: "${name}"`);
+  logger.log(`  - Create new mode: ${createNew}`);
+  logger.log(`  - Total collections: ${collections.length}`);
+  
+  // 既存コレクションを表示
+  if (collections.length > 0) {
+    logger.log(`  - Existing collections:`);
+    collections.forEach((c, index) => {
+      logger.log(`    ${index + 1}. "${c.name}" (ID: ${c.id}, variables: ${c.variableIds.length})`);
+    });
+  }
+  
+  // 完全一致で検索（大文字小文字を区別）
+  let existing = collections.find(c => c.name === name);
+  
+  // 見つからない場合は、トリムして再検索
+  if (!existing) {
+    const trimmedName = name.trim();
+    existing = collections.find(c => c.name.trim() === trimmedName);
     if (existing) {
-      return existing;
+      logger.log(`  - Found collection with trimmed name: "${existing.name}"`);
     }
   }
   
+  // 見つからない場合は、大文字小文字を無視して再検索
+  if (!existing) {
+    existing = collections.find(c => c.name.toLowerCase() === name.toLowerCase());
+    if (existing) {
+      logger.log(`  - Found collection with case-insensitive match: "${existing.name}"`);
+    }
+  }
+  
+  // 同名のコレクションが複数存在するかチェック
+  const matchingCollections = collections.filter(c => 
+    c.name === name || 
+    c.name.trim() === name.trim() || 
+    c.name.toLowerCase() === name.toLowerCase()
+  );
+  
+  if (matchingCollections.length > 1) {
+    logger.warn(`  - WARNING: Found ${matchingCollections.length} collections with similar names!`);
+    matchingCollections.forEach((c, index) => {
+      logger.warn(`    ${index + 1}. "${c.name}" (ID: ${c.id})`);
+    });
+    logger.warn(`  - Using first match: "${matchingCollections[0].name}"`);
+    existing = matchingCollections[0];
+  }
+  
+  if (!createNew && existing) {
+    logger.log(`  ✅ Using existing collection: "${existing.name}" (ID: ${existing.id})`);
+    return existing;
+  }
+  
+  if (!createNew && !existing) {
+    // 既存のコレクションを使用するモードだが、見つからない場合
+    logger.error(`  ❌ ERROR: createNew is false, but collection "${name}" not found!`);
+    logger.error(`  - Available collections: ${collections.map(c => `"${c.name}"`).join(', ')}`);
+    throw new Error(`Collection "${name}" not found. Please select an existing collection or create a new one.`);
+  }
+  
   // 新しいコレクションを作成
+  logger.log(`  - Creating new collection: "${name}"`);
   const collection = figma.variables.createVariableCollection(name);
   
   // デフォルトモードの名前を設定
   const modeId = collection.modes[0].modeId;
   collection.renameMode(modeId, "Default");
+  
+  logger.log(`  ✅ Created new collection: "${collection.name}" (ID: ${collection.id})`);
   
   return collection;
 }
@@ -167,11 +229,58 @@ export async function updateVariable(
     ? `${variable.group}/${variable.name}`
     : variable.name;
   
-  // 既存のVariableを検索
+  logger.log(`[updateVariable] Processing: ${variableName}`);
+  logger.log(`  - Type: ${variable.type} -> ${figmaType}`);
+  logger.log(`  - Value: ${JSON.stringify(variable.value)}`);
+  
+  // 既存のVariableを検索（最新の状態を取得）
   const existingVariables = await figma.variables.getLocalVariablesAsync();
-  let figmaVariable = existingVariables.find(
-    v => v.name === variableName && v.variableCollectionId === collection.id
+  logger.log(`  - Total variables in Figma: ${existingVariables.length}`);
+  
+  // コレクション内の変数のみをフィルタ
+  const collectionVariables = existingVariables.filter(
+    v => v.variableCollectionId === collection.id
   );
+  logger.log(`  - Variables in this collection: ${collectionVariables.length}`);
+  
+  // 同名の変数が複数存在するかチェック
+  const matchingVariables = collectionVariables.filter(v => v.name === variableName);
+  if (matchingVariables.length > 1) {
+    logger.warn(`  - Found ${matchingVariables.length} variables with the same name "${variableName}" in this collection!`);
+    matchingVariables.forEach((v, index) => {
+      logger.warn(`    ${index + 1}. ID: ${v.id}, Type: ${v.resolvedType}`);
+    });
+  }
+  
+  let figmaVariable = matchingVariables[0]; // 最初の一致を使用
+  
+  if (!figmaVariable) {
+    // より広範囲に検索（コレクションIDを無視）
+    const anyVariable = existingVariables.find(v => v.name === variableName);
+    if (anyVariable && anyVariable.variableCollectionId !== collection.id) {
+      logger.warn(`  - Found variable "${variableName}" in different collection: ${anyVariable.variableCollectionId}`);
+    }
+  }
+  
+  // 既存変数の情報をログ
+  if (figmaVariable) {
+    const modeId = collection.modes[0].modeId;
+    const currentValue = figmaVariable.valuesByMode[modeId];
+    logger.log(`  - Existing variable found (ID: ${figmaVariable.id})`);
+    logger.log(`    - Current type: ${figmaVariable.resolvedType}`);
+    logger.log(`    - Current value: ${JSON.stringify(currentValue)}`);
+    logger.log(`    - Variable collection: ${figmaVariable.variableCollectionId}`);
+    logger.log(`    - Target collection: ${collection.id}`);
+    
+    // コレクションIDが一致しているか確認
+    if (figmaVariable.variableCollectionId !== collection.id) {
+      logger.error(`  - ERROR: Variable collection ID mismatch!`);
+      logger.error(`    - Variable is in: ${figmaVariable.variableCollectionId}`);
+      logger.error(`    - Should be in: ${collection.id}`);
+    }
+  } else {
+    logger.log(`  - No existing variable found, will create new`);
+  }
   
   // 既存のVariableがない場合は作成
   if (!figmaVariable) {
@@ -180,10 +289,13 @@ export async function updateVariable(
       collection,
       figmaType
     );
+    logger.log(`  - Created new variable with type: ${figmaType}`);
   }
   
   // 型が異なる場合は再作成が必要
   if (figmaVariable.resolvedType !== figmaType) {
+    logger.log(`  - Type mismatch! ${figmaVariable.resolvedType} !== ${figmaType}`);
+    logger.log(`  - Removing old variable and creating new one`);
     // 古いVariableを削除
     figmaVariable.remove();
     // 新しい型で作成
@@ -236,7 +348,34 @@ export async function updateVariable(
     valueToSet = parseVariableValue(variable);
   }
   
-  figmaVariable.setValueForMode(modeId, valueToSet);
+  logger.log(`  - Setting value: ${JSON.stringify(valueToSet)}`);
+  
+  // 値を設定（既存変数の場合は明示的に上書き）
+  try {
+    figmaVariable.setValueForMode(modeId, valueToSet);
+    
+    // 値が実際に設定されたか確認
+    const newValue = figmaVariable.valuesByMode[modeId];
+    logger.log(`  - Value set successfully`);
+    logger.log(`  - Verified new value: ${JSON.stringify(newValue)}`);
+    
+    // 値が意図した通りに設定されたか検証
+    const isValueCorrect = JSON.stringify(newValue) === JSON.stringify(valueToSet);
+    if (!isValueCorrect) {
+      logger.warn(`  - Warning: Set value doesn't match expected value!`);
+      logger.warn(`    - Expected: ${JSON.stringify(valueToSet)}`);
+      logger.warn(`    - Actual: ${JSON.stringify(newValue)}`);
+      
+      // 再試行
+      logger.log(`  - Retrying to set value...`);
+      figmaVariable.setValueForMode(modeId, valueToSet);
+      const retryValue = figmaVariable.valuesByMode[modeId];
+      logger.log(`  - Retry result: ${JSON.stringify(retryValue)}`);
+    }
+  } catch (error) {
+    logger.error(`  - Error setting value:`, error);
+    throw new Error(`Failed to set value for ${variableName}: ${error instanceof Error ? error.message : String(error)}`);
+  }
   
   // 説明を設定
   if (variable.description) {
@@ -284,21 +423,32 @@ export async function findVariableByName(
 
 // Variable値をパース
 function parseVariableValue(variable: NotionVariable): VariableValue {
+  logger.log(`  - [parseVariableValue] Type: ${variable.type}, Raw value: ${JSON.stringify(variable.value)}`);
+  
+  let result: VariableValue;
   switch (variable.type) {
     case VariableType.COLOR:
-      return parseColor(variable.value);
+      result = parseColor(variable.value);
+      break;
     case VariableType.NUMBER:
-      return typeof variable.value === 'number' 
+      result = typeof variable.value === 'number' 
         ? variable.value 
         : parseFloat(String(variable.value));
+      logger.log(`  - [parseVariableValue] NUMBER: "${variable.value}" -> ${result}`);
+      break;
     case VariableType.BOOLEAN:
-      return typeof variable.value === 'boolean'
+      result = typeof variable.value === 'boolean'
         ? variable.value
         : String(variable.value).toLowerCase() === 'true';
+      break;
     case VariableType.STRING:
     default:
-      return String(variable.value);
+      result = String(variable.value);
+      logger.log(`  - [parseVariableValue] STRING: "${variable.value}" -> "${result}"`);
+      break;
   }
+  
+  return result;
 }
 
 // フォールバック値を型に応じてパース
@@ -336,7 +486,14 @@ export async function getExistingVariables(
     if (!collection) continue;
     
     const modeId = collection.modes[0].modeId;
-    const value = variable.valuesByMode[modeId];
+    let value = variable.valuesByMode[modeId];
+    
+    // Variable Aliasの場合は、その参照先の値ではなく、Aliasとして記録
+    // （ただし、比較用には実際の値を保持する必要がある）
+    if (typeof value === 'object' && value !== null && 'type' in value && value.type === 'VARIABLE_ALIAS') {
+      // Aliasの場合は、そのまま保持（updateVariableでも同じ形式で扱う）
+      logger.log(`  - Variable ${variable.name} is an alias`);
+    }
     
     // 階層構造を解析
     const hierarchy = parseVariableName(variable.name);

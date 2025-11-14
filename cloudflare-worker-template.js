@@ -16,16 +16,20 @@
 
 export default {
   async fetch(request, env, ctx) {
-    // CORS
+    // CORS - すべてのレスポンスに含める
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization, Notion-Version, Accept, X-Proxy-Token',
-      'Access-Control-Max-Age': '86400'
+      'Access-Control-Max-Age': '86400',
     };
 
+    // プリフライトリクエスト（OPTIONS）を最優先で処理
     if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: corsHeaders });
+      return new Response(null, { 
+        status: 204, 
+        headers: corsHeaders 
+      });
     }
 
     try {

@@ -89,6 +89,7 @@ export interface ImportSettings {
   collectionName?: string;
   createNewCollection: boolean;
   overwriteExisting: boolean;
+  deleteRemovedVariables?: boolean; // Notionから削除された変数をFigmaからも削除するか
   mappings: FieldMapping[];
   notionApiKey?: string; // 互換性のため残す
 }
