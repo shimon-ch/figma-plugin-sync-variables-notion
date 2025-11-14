@@ -32,17 +32,21 @@ function maskSensitiveData(args: any[]): any[] {
   });
 }
 
-export const logger = {
-  log: (...args: any[]) => {
-    console.log(...maskSensitiveData(args));
-  },
-  error: (...args: any[]) => {
-    console.error(...maskSensitiveData(args));
-  },
-  warn: (...args: any[]) => {
-    console.warn(...maskSensitiveData(args));
-  },
-  info: (...args: any[]) => {
-    console.info(...maskSensitiveData(args));
+type LogLevel = 'log' | 'info' | 'warn' | 'error';
+
+function emit(level: LogLevel, args: any[], devOnly: boolean) {
+  if (devOnly && !isDevelopment) {
+    return;
   }
+  const consoleFn = console[level];
+  if (typeof consoleFn === 'function') {
+    consoleFn(...maskSensitiveData(args));
+  }
+}
+
+export const logger = {
+  log: (...args: any[]) => emit('log', args, true),
+  info: (...args: any[]) => emit('info', args, true),
+  warn: (...args: any[]) => emit('warn', args, false),
+  error: (...args: any[]) => emit('error', args, false)
 };
