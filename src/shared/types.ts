@@ -47,29 +47,6 @@ export enum MessageTypeEnum {
   OPERATION_STATUS = 'OPERATION_STATUS'
 }
 
-// 進捗情報の型定義
-export interface ProgressData {
-  current: number;
-  total: number;
-  phase: 'fetching' | 'importing' | 'deleting';
-  message: string;
-}
-
-// 保存データの型定義
-export interface SavedFormData {
-  notion_api_key?: string;
-  notion_database_id?: string;
-  collection_name?: string;
-  collection_mode?: 'new' | 'existing';
-  overwrite_existing?: boolean;
-  delete_removed_variables?: boolean;
-  notion_proxy_url?: string;
-  notion_proxy_token?: string;
-  collection_id?: string;
-  include_description?: boolean;
-  preserve_hierarchy?: boolean;
-}
-
 export interface PluginMessage {
   type: MessageType;
   data?: unknown;
@@ -129,4 +106,27 @@ export interface ImportSettings {
 export interface FieldMapping {
   notionField: string;
   variableProperty: 'name' | 'value' | 'type' | 'description' | 'group';
+}
+
+// 進捗情報の型定義
+export interface ProgressData {
+  current: number;
+  total: number;
+  phase: 'fetching' | 'importing' | 'deleting';
+  message: string;
+}
+
+// 保存データの型を定義
+export interface SavedFormData {
+  notion_api_key?: string;
+  notion_database_id?: string;
+  collection_name?: string;
+  collection_mode?: 'new' | 'existing';
+  overwrite_existing?: boolean;
+  delete_removed_variables?: boolean;
+  notion_proxy_url?: string;
+  notion_proxy_token?: string;
+  collection_id?: string;
+  include_description?: boolean;
+  preserve_hierarchy?: boolean;
 }
