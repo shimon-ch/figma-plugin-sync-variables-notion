@@ -39,3 +39,62 @@ html:lang(ja) body {
   font-variant-east-asian: proportional-width;
   font-feature-settings: "palt" 1, "pkna" 1;
 }
+
+/* ドラッグ＆ドロップ用スタイル */
+.sync-pair-list {
+  /* GridListのデフォルトスタイルをリセット */
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.sync-pair-item {
+  /* アイテムのベーススタイル */
+  border-radius: 0.5rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.sync-pair-item[data-dragging] {
+  /* ドラッグ中のスタイル */
+  opacity: 0.6;
+  transform: scale(1.02);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+  z-index: 100;
+}
+
+.sync-pair-item[data-drop-target] {
+  /* ドロップターゲット時のスタイル */
+  outline: 2px dashed oklch(var(--p));
+  outline-offset: 2px;
+}
+
+.sync-pair-item[data-focused] {
+  /* フォーカス時のスタイル */
+  outline: 2px solid oklch(var(--p) / 0.5);
+  outline-offset: 2px;
+}
+
+/* ドロップインジケーター */
+.drop-indicator {
+  width: 100%;
+  height: 3px;
+  margin: 4px 0;
+  background: oklch(var(--p));
+  border-radius: 2px;
+  transition: opacity 0.15s ease;
+}
+
+.drop-indicator[data-drop-target] {
+  background: oklch(var(--p));
+  box-shadow: 0 0 8px oklch(var(--p) / 0.5);
+}
+
+/* ドラッグハンドルのホバー効果 */
+.sync-pair-item:hover [slot="drag"] {
+  opacity: 1;
+}
+
+.sync-pair-item [slot="drag"] {
+  opacity: 0.6;
+  transition: opacity 0.15s ease;
+}

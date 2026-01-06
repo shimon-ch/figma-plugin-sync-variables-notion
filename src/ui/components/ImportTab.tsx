@@ -3,6 +3,7 @@ import { fetchNotionData, fetchNotionPage } from '../services/notionProxy';
 import { transformNotionResponse } from '../services/notionTransform';
 import { ImportSettings, FieldMapping, NotionVariable, SavedFormData, ProgressData, CollectionDbPair } from '../../shared/types';
 import FieldMappingEditor from './FieldMappingEditor';
+import SyncPairList, { createEmptyPair, generateUUID } from './SyncPairList';
 
 interface Collection {
   id: string;
@@ -12,24 +13,6 @@ interface Collection {
 
 // デフォルトのタイムアウト（変数数不明時）
 const DEFAULT_TIMEOUT_MS = 60000; // 1分
-
-// UUID生成関数
-const generateUUID = (): string => {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-};
-
-// 空のペアを作成
-const createEmptyPair = (): CollectionDbPair => ({
-  id: generateUUID(),
-  collectionName: '',
-  databaseId: '',
-  enabled: true,
-  isManualInput: false
-});
 
 const ImportTab = () => {
   const [apiKey, setApiKey] = useState('');
@@ -207,21 +190,6 @@ const ImportTab = () => {
     setCollectionDbPairs(prev => [...prev, createEmptyPair()]);
   }, []);
 
-  // ペアを削除
-  const removePair = useCallback((id: string) => {
-    setCollectionDbPairs(prev => {
-      const newPairs = prev.filter(p => p.id !== id);
-      // 最低1つは残す
-      return newPairs.length > 0 ? newPairs : [createEmptyPair()];
-    });
-  }, []);
-
-  // ペアを更新
-  const updatePair = useCallback((id: string, updates: Partial<CollectionDbPair>) => {
-    setCollectionDbPairs(prev => prev.map(p => 
-      p.id === id ? { ...p, ...updates } : p
-    ));
-  }, []);
 
   // 全選択/全解除
   const toggleAllPairs = useCallback((enabled: boolean) => {
@@ -542,81 +510,16 @@ const ImportTab = () => {
         <h2 className="mb-2 text-sm font-semibold">同期ペア設定</h2>
         <small className="text-xs text-base-content/70 block mb-3">
           FigmaコレクションとNotionデータベースIDのペアを登録してください。
+          <span className="text-primary ml-1">⋮⋮をドラッグして順序を変更できます。</span>
         </small>
         
-        {/* ペアリスト */}
-        <div className="space-y-3">
-          {collectionDbPairs.map((pair) => (
-            <div key={pair.id} className="flex items-start gap-2 p-3 bg-base-200 rounded-lg">
-              {/* チェックボックス */}
-              <input
-                type="checkbox"
-                className="checkbox checkbox-primary checkbox-sm mt-2"
-                checked={pair.enabled}
-                onChange={(e) => updatePair(pair.id, { enabled: e.target.checked })}
-              />
-              
-              <div className="flex-1 space-y-2">
-                {/* コレクション名 */}
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-base-content/60 w-24 shrink-0">コレクション:</span>
-                  {pair.isManualInput ? (
-                    <input
-                      type="text"
-                      className="input input-sm input-bordered flex-1"
-                      placeholder="コレクション名を入力"
-                      value={pair.collectionName}
-                      onChange={(e) => updatePair(pair.id, { collectionName: e.target.value })}
-                      onBlur={saveFormData}
-                    />
-                  ) : (
-                    <select
-                      className="select select-sm flex-1"
-                      value={pair.collectionName}
-                      onChange={(e) => updatePair(pair.id, { collectionName: e.target.value })}
-                    >
-                      <option value="">コレクションを選択</option>
-                      {collections.map((col) => (
-                        <option key={col.id} value={col.name}>{col.name}</option>
-                      ))}
-                    </select>
-                  )}
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-xs"
-                    onClick={() => updatePair(pair.id, { isManualInput: !pair.isManualInput, collectionName: '' })}
-                    title={pair.isManualInput ? "ドロップダウンに切替" : "手入力に切替"}
-                  >
-                    {pair.isManualInput ? '📋' : '✏️'}
-                  </button>
-                </div>
-                
-                {/* データベースID */}
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-base-content/60 w-24 shrink-0">DB ID:</span>
-                  <input
-                    type="text"
-                    className="input input-sm input-bordered flex-1 font-mono text-xs"
-                    placeholder="NotionデータベースID"
-                    value={pair.databaseId}
-                    onChange={(e) => updatePair(pair.id, { databaseId: e.target.value })}
-                    onBlur={saveFormData}
-                  />
-                </div>
-              </div>
-              
-              {/* 削除ボタン */}
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm btn-square text-error"
-                onClick={() => removePair(pair.id)}
-                title="ペアを削除"
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
+        {/* ペアリスト（ドラッグ＆ドロップ対応） */}
+        <SyncPairList
+          pairs={collectionDbPairs}
+          collections={collections}
+          onPairsChange={setCollectionDbPairs}
+          onSave={saveFormData}
+        />
         
         {/* 追加ボタンと全選択 */}
         <div className="flex justify-between items-center mt-3">
