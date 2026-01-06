@@ -116,6 +116,15 @@ export interface ProgressData {
   message: string;
 }
 
+// コレクション+DBID ペアの型
+export interface CollectionDbPair {
+  id: string;              // ユニークID (uuid)
+  collectionName: string;  // Figmaコレクション名
+  databaseId: string;      // NotionデータベースID
+  enabled: boolean;        // インポート対象かどうか
+  isManualInput?: boolean; // 手入力モードかどうか
+}
+
 // 保存データの型を定義
 export interface SavedFormData {
   notion_api_key?: string;
@@ -129,4 +138,5 @@ export interface SavedFormData {
   collection_id?: string;
   include_description?: boolean;
   preserve_hierarchy?: boolean;
+  collection_db_pairs?: CollectionDbPair[];  // コレクション+DBIDペアのリスト
 }

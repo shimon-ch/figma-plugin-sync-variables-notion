@@ -220,9 +220,11 @@ export async function createVariableCollection(
 }
 
 // Variableを作成または更新
+// existingVariablesを渡すことで、毎回getLocalVariablesAsync()を呼ばずに済む
 export async function updateVariable(
   collection: VariableCollection,
-  variable: NotionVariable
+  variable: NotionVariable,
+  existingVariables?: Variable[]
 ): Promise<Variable> {
   const figmaType = convertToFigmaVariableType(variable.type);
   const variableName = variable.group 
@@ -233,12 +235,12 @@ export async function updateVariable(
   logger.log(`  - Type: ${variable.type} -> ${figmaType}`);
   logger.log(`  - Value: ${JSON.stringify(variable.value)}`);
   
-  // 既存のVariableを検索（最新の状態を取得）
-  const existingVariables = await figma.variables.getLocalVariablesAsync();
-  logger.log(`  - Total variables in Figma: ${existingVariables.length}`);
+  // 既存のVariableを検索（渡されていない場合のみ取得）
+  const allVariables = existingVariables ?? await figma.variables.getLocalVariablesAsync();
+  logger.log(`  - Total variables in Figma: ${allVariables.length}`);
   
   // コレクション内の変数のみをフィルタ
-  const collectionVariables = existingVariables.filter(
+  const collectionVariables = allVariables.filter(
     v => v.variableCollectionId === collection.id
   );
   logger.log(`  - Variables in this collection: ${collectionVariables.length}`);
@@ -256,7 +258,7 @@ export async function updateVariable(
   
   if (!figmaVariable) {
     // より広範囲に検索（コレクションIDを無視）
-    const anyVariable = existingVariables.find(v => v.name === variableName);
+    const anyVariable = allVariables.find(v => v.name === variableName);
     if (anyVariable && anyVariable.variableCollectionId !== collection.id) {
       logger.warn(`  - Found variable "${variableName}" in different collection: ${anyVariable.variableCollectionId}`);
     }
@@ -324,7 +326,7 @@ export async function updateVariable(
     logger.log(`Setting variable reference: ${variableName} -> ${referenceName}`);
     
     // 参照先のVariableを探す
-    const referenceVariable = await findVariableByName(referenceName, existingVariables);
+    const referenceVariable = await findVariableByName(referenceName, allVariables);
     
     if (referenceVariable) {
       // Variable Aliasとして設定

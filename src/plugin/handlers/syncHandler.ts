@@ -51,9 +51,14 @@ export async function handleImportFromNotion(settings: ImportSettings & { variab
     logger.log(`  - Using collection: "${collection.name}" (ID: ${collection.id})`);
     logger.log(`  - Collection has ${collection.variableIds.length} variables`);
     
-    // 既存のVariablesを取得
+    // 既存のVariablesを取得（NotionVariable形式）
     const existingVariables = await getExistingVariables(collection.id);
     logger.log(`Found ${existingVariables.length} existing variables in collection`);
+    
+    // Figma Variable形式のリストも一括取得（updateVariableに渡すため）
+    // これにより、updateVariable内で毎回getLocalVariablesAsync()を呼ばなくて済む
+    const allFigmaVariables = await figma.variables.getLocalVariablesAsync();
+    logger.log(`Total Figma variables loaded: ${allFigmaVariables.length}`);
     
     const existingVariableMap = new Map(
       existingVariables.map(v => {
@@ -127,12 +132,14 @@ export async function handleImportFromNotion(settings: ImportSettings & { variab
         if (isAliasWithFallback) {
           const [ref, fb] = String(variable.value).split('||');
           const targetName = ref.replace(/^\{|\}$/g, '');
-          const refVar = await findVariableByName(targetName);
+          const refVar = await findVariableByName(targetName, allFigmaVariables);
           if (!refVar && fb) {
             // まずフォールバックで作成
             logger.log(`  - Using fallback value: ${fb}`);
             const backup = { ...variable, value: fb };
-            await updateVariable(collection, backup);
+            const newVar = await updateVariable(collection, backup, allFigmaVariables);
+            // 新規作成した変数をリストに追加（後続の参照解決で使用可能にする）
+            allFigmaVariables.push(newVar);
             importedCount++;
             continue;
           }
@@ -145,7 +152,11 @@ export async function handleImportFromNotion(settings: ImportSettings & { variab
           value: variable.value
         });
         
-        await updateVariable(collection, variable);
+        const newVar = await updateVariable(collection, variable, allFigmaVariables);
+        // 新規作成した変数をリストに追加（後続の参照解決で使用可能にする）
+        if (!allFigmaVariables.some(v => v.id === newVar.id)) {
+          allFigmaVariables.push(newVar);
+        }
         logger.log(`  ✅ updateVariable completed for ${fullName}`);
         importedCount++;
         
@@ -161,7 +172,7 @@ export async function handleImportFromNotion(settings: ImportSettings & { variab
       try {
         const isAlias = typeof variable.value === 'string' && String(variable.value).startsWith('{');
         if (!isAlias) continue;
-        await updateVariable(collection, variable);
+        await updateVariable(collection, variable, allFigmaVariables);
       } catch (error) {
         logger.warn(`Alias re-resolve failed for ${variable.name}:`, error);
       }
@@ -184,9 +195,8 @@ export async function handleImportFromNotion(settings: ImportSettings & { variab
       logger.log(`  - Notion variable names:`, Array.from(notionVariableNames).slice(0, 5).join(', ') + (notionVariableNames.size > 5 ? '...' : ''));
       logger.log(`  - Existing variables in collection: ${existingVariables.length}`);
       
-      // Figmaの変数を一度だけ取得
-      const figmaVars = await figma.variables.getLocalVariablesAsync();
-      const collectionVars = figmaVars.filter(v => v.variableCollectionId === collection.id);
+      // 既に取得済みのallFigmaVariablesを再利用（再取得不要）
+      const collectionVars = allFigmaVariables.filter(v => v.variableCollectionId === collection.id);
       logger.log(`  - Total Figma variables in this collection: ${collectionVars.length}`);
       
       // 既存変数の中で、Notionに存在しないものを削除

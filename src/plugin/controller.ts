@@ -23,7 +23,8 @@ const STORAGE_KEYS = {
   PROXY_TOKEN: 'notion_proxy_token',
   COLLECTION_ID: 'collection_id',
   INCLUDE_DESC: 'include_description',
-  PRESERVE_HIERARCHY: 'preserve_hierarchy'
+  PRESERVE_HIERARCHY: 'preserve_hierarchy',
+  COLLECTION_DB_PAIRS: 'collection_db_pairs'  // JSONで保存
 };
 
 // 保存関数
@@ -141,6 +142,18 @@ async function loadAllData(): Promise<any> {
   const preserveHierarchy = await loadValue(STORAGE_KEYS.PRESERVE_HIERARCHY);
   if (preserveHierarchy !== null) data.preserve_hierarchy = preserveHierarchy === 'true';
   
+  // コレクション+DBIDペアの読み込み（JSON形式）
+  const collectionDbPairs = await loadValue(STORAGE_KEYS.COLLECTION_DB_PAIRS);
+  if (collectionDbPairs) {
+    try {
+      data.collection_db_pairs = JSON.parse(collectionDbPairs);
+      logger.log(`📖 Loaded ${data.collection_db_pairs.length} collection-db pairs`);
+    } catch (parseError) {
+      logger.error('❌ Failed to parse collection_db_pairs:', parseError);
+      data.collection_db_pairs = [];
+    }
+  }
+  
   return data;
 }
 
@@ -157,6 +170,17 @@ async function saveAllData(data: any): Promise<void> {
   if (data.collection_id !== undefined) await saveValue(STORAGE_KEYS.COLLECTION_ID, data.collection_id);
   if (data.include_description !== undefined) await saveValue(STORAGE_KEYS.INCLUDE_DESC, data.include_description);
   if (data.preserve_hierarchy !== undefined) await saveValue(STORAGE_KEYS.PRESERVE_HIERARCHY, data.preserve_hierarchy);
+  
+  // コレクション+DBIDペアの保存（JSON形式）
+  if (data.collection_db_pairs !== undefined) {
+    try {
+      const pairsJson = JSON.stringify(data.collection_db_pairs);
+      await figma.clientStorage.setAsync(STORAGE_KEYS.COLLECTION_DB_PAIRS, pairsJson);
+      logger.log(`💾 Saved ${data.collection_db_pairs.length} collection-db pairs`);
+    } catch (saveError) {
+      logger.error('❌ Failed to save collection_db_pairs:', saveError);
+    }
+  }
 }
 
 // 起動時の初期化

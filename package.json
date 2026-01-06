@@ -19,13 +19,19 @@
     "lint": "eslint --ext .ts,.tsx src/",
     "lint:fix": "eslint --ext .ts,.tsx src/ --fix",
     "type-check": "tsc --noEmit",
-    "validate": "npm run type-check && npm run lint"
+    "validate": "npm run type-check && npm run lint",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "license": "MIT",
   "devDependencies": {
     "@figma/eslint-plugin-figma-plugins": "*",
     "@figma/plugin-typings": "*",
     "@tailwindcss/vite": "^4.1.16",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.1",
+    "@types/jest": "^30.0.0",
     "@types/node": "^24.10.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
@@ -35,10 +41,13 @@
     "clsx": "^2.1.1",
     "daisyui": "^5.4.5",
     "eslint": "^9.39.1",
+    "happy-dom": "^20.0.11",
+    "jsdom": "^27.4.0",
     "tailwindcss": "^4.1.16",
     "typescript": "^5.9.3",
     "vite": "^7.2.1",
-    "vite-plugin-singlefile": "^2.3.0"
+    "vite-plugin-singlefile": "^2.3.0",
+    "vitest": "^4.0.16"
   },
   "dependencies": {
     "react": "^19.2.0",
