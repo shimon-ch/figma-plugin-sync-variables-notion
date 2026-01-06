@@ -12,10 +12,16 @@ export const MessageType = {
   RESIZE_UI: 'RESIZE_UI',
   CLOSE_PLUGIN: 'CLOSE_PLUGIN',
   
-  // エラー・成功
+  // エラー・成功・進捗
   ERROR: 'ERROR',
   SUCCESS: 'SUCCESS',
-  LOADING: 'LOADING'
+  LOADING: 'LOADING',
+  
+  // 進捗通知
+  PROGRESS: 'PROGRESS',
+  
+  // 操作ステータス（統合用）
+  OPERATION_STATUS: 'OPERATION_STATUS'
 } as const;
 
 export type MessageType = typeof MessageType[keyof typeof MessageType];
@@ -36,7 +42,9 @@ export enum MessageTypeEnum {
   // エラー・成功
   ERROR = 'ERROR',
   SUCCESS = 'SUCCESS',
-  LOADING = 'LOADING'
+  LOADING = 'LOADING',
+  PROGRESS = 'PROGRESS',
+  OPERATION_STATUS = 'OPERATION_STATUS'
 }
 
 export interface PluginMessage {
@@ -98,4 +106,27 @@ export interface ImportSettings {
 export interface FieldMapping {
   notionField: string;
   variableProperty: 'name' | 'value' | 'type' | 'description' | 'group';
+}
+
+// 進捗情報の型定義
+export interface ProgressData {
+  current: number;
+  total: number;
+  phase: 'fetching' | 'importing' | 'deleting';
+  message: string;
+}
+
+// 保存データの型を定義
+export interface SavedFormData {
+  notion_api_key?: string;
+  notion_database_id?: string;
+  collection_name?: string;
+  collection_mode?: 'new' | 'existing';
+  overwrite_existing?: boolean;
+  delete_removed_variables?: boolean;
+  notion_proxy_url?: string;
+  notion_proxy_token?: string;
+  collection_id?: string;
+  include_description?: boolean;
+  preserve_hierarchy?: boolean;
 }

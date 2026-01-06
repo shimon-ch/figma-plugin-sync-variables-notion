@@ -1,7 +1,7 @@
-import { useState, useEffect, FormEvent, useRef } from 'react';
+import { useState, useEffect, FormEvent, useRef, useCallback } from 'react';
 import { fetchNotionData, fetchNotionPage } from '../services/notionProxy';
 import { transformNotionResponse } from '../services/notionTransform';
-import { ImportSettings, FieldMapping, NotionVariable } from '../../shared/types';
+import { ImportSettings, FieldMapping, NotionVariable, SavedFormData, ProgressData } from '../../shared/types';
 import FieldMappingEditor from './FieldMappingEditor';
 
 interface Collection {
@@ -9,6 +9,15 @@ interface Collection {
   name: string;
   variableIds?: string[];
 }
+
+// タイムアウト時間を計算する関数
+const calculateTimeout = (variableCount: number): number => {
+  // 基本30秒 + 変数数 x 0.5秒、最大5分
+  return Math.min(30000 + (variableCount * 500), 300000);
+};
+
+// デフォルトのタイムアウト（変数数不明時）
+const DEFAULT_TIMEOUT_MS = 60000; // 1分
 
 const ImportTab = () => {
   const [apiKey, setApiKey] = useState('');
@@ -30,7 +39,49 @@ const ImportTab = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const importTimeoutRef = useRef<number | null>(null);
+  const currentTimeoutMsRef = useRef<number>(DEFAULT_TIMEOUT_MS);
   const hasLoadedDataRef = useRef(false);
+
+  // タイムアウトをクリアするヘルパー関数
+  const clearImportTimeout = useCallback(() => {
+    if (importTimeoutRef.current) {
+      clearTimeout(importTimeoutRef.current);
+      importTimeoutRef.current = null;
+    }
+  }, []);
+
+  // タイムアウト処理のハンドラー
+  const handleTimeout = useCallback(() => {
+    setIsLoading(false);
+    setStatus({ type: 'error', text: 'インポートがタイムアウトしました。通信状況を確認してください。' });
+    importTimeoutRef.current = null;
+  }, []);
+
+  // タイムアウトタイマーをリセットする関数
+  const resetTimeout = useCallback(() => {
+    clearImportTimeout();
+    importTimeoutRef.current = window.setTimeout(handleTimeout, currentTimeoutMsRef.current);
+  }, [clearImportTimeout, handleTimeout]);
+
+  // 保存データを適用するヘルパー関数
+  const applySavedData = useCallback((data: SavedFormData) => {
+    if (data.notion_api_key) setApiKey(data.notion_api_key);
+    if (data.notion_database_id) setDatabaseId(data.notion_database_id);
+    if (data.collection_name) setCollectionName(data.collection_name);
+    if (data.collection_mode) setCollectionMode(data.collection_mode);
+    if (data.overwrite_existing !== undefined) setOverwriteExisting(data.overwrite_existing);
+    if (data.delete_removed_variables !== undefined) setDeleteRemovedVariables(data.delete_removed_variables);
+    if (data.notion_proxy_url) setProxyUrl(data.notion_proxy_url);
+    if (data.notion_proxy_token) setProxyToken(data.notion_proxy_token);
+  }, []);
+
+  // 完了処理の共通ハンドラー（SUCCESS, ERROR, OPERATION_STATUS用）
+  const handleOperationComplete = useCallback((success: boolean, message: string) => {
+    setIsLoading(false);
+    clearImportTimeout();
+    setStatus({ type: success ? 'success' : 'error', text: message });
+    window.setTimeout(() => setStatus(null), success ? 4000 : 6000);
+  }, [clearImportTimeout]);
 
   // 初期データを受信
   useEffect(() => {
@@ -38,91 +89,70 @@ const ImportTab = () => {
       const msg = event.data.pluginMessage;
       if (!msg) return;
       
+      // 初期化データ
       if (msg.type === 'INIT_DATA') {
         if (msg.collections) {
           setCollections(msg.collections || []);
         }
-        
         if (msg.savedData) {
-          if (msg.savedData.notion_api_key) setApiKey(msg.savedData.notion_api_key);
-          if (msg.savedData.notion_database_id) setDatabaseId(msg.savedData.notion_database_id);
-          if (msg.savedData.collection_name) setCollectionName(msg.savedData.collection_name);
-          if (msg.savedData.collection_mode) setCollectionMode(msg.savedData.collection_mode);
-          if (msg.savedData.overwrite_existing !== undefined) setOverwriteExisting(msg.savedData.overwrite_existing);
-          if ((msg.savedData as any).delete_removed_variables !== undefined) setDeleteRemovedVariables((msg.savedData as any).delete_removed_variables);
-          if ((msg.savedData as any).notion_proxy_url) setProxyUrl((msg.savedData as any).notion_proxy_url);
-          if ((msg.savedData as any).notion_proxy_token) setProxyToken((msg.savedData as any).notion_proxy_token);
+          applySavedData(msg.savedData as SavedFormData);
         }
-        
-        // データ読み込み完了フラグを立てる
         hasLoadedDataRef.current = true;
       }
       
+      // コレクションデータ
       if (msg.type === 'COLLECTIONS_DATA' && msg.data) {
         setCollections(msg.data.collections || []);
       }
       
-      if (msg.type === 'OPERATION_STATUS' && msg.data) {
-        setIsLoading(false);
-        if (importTimeoutRef.current) {
-          clearTimeout(importTimeoutRef.current);
-          importTimeoutRef.current = null;
-        }
-        const ok = (typeof msg.data.success === 'boolean') ? msg.data.success : (msg.data.status === 'success');
-        const message = msg.data.message || (ok ? 'インポートが完了しました。' : 'インポートに失敗しました。');
-        setStatus({ type: ok ? 'success' : 'error', text: message });
-        window.setTimeout(() => setStatus(null), 4000);
+      // 進捗通知（タイムアウトタイマーをリセット）
+      if (msg.type === 'PROGRESS' && msg.data) {
+        const progressData = msg.data as ProgressData;
+        resetTimeout();
+        setStatus({ type: 'info', text: progressData.message });
       }
 
+      // ローディング状態
       if (msg.type === 'LOADING' && msg.data) {
-        setStatus({ type: 'info', text: String((msg.data as any).message || '処理中...') });
+        const loadingData = msg.data as { message?: string };
+        setStatus({ type: 'info', text: loadingData.message || '処理中...' });
       }
 
+      // 操作完了（統合ハンドラー）
+      if (msg.type === 'OPERATION_STATUS' && msg.data) {
+        const data = msg.data as { success?: boolean; status?: string; message?: string };
+        const ok = (typeof data.success === 'boolean') ? data.success : (data.status === 'success');
+        const message = data.message || (ok ? 'インポートが完了しました。' : 'インポートに失敗しました。');
+        handleOperationComplete(ok, message);
+      }
+
+      // 成功
       if (msg.type === 'SUCCESS' && msg.data) {
-        setIsLoading(false);
-        if (importTimeoutRef.current) {
-          clearTimeout(importTimeoutRef.current);
-          importTimeoutRef.current = null;
-        }
-        const message = (msg.data as any).message || 'インポートが完了しました。';
-        setStatus({ type: 'success', text: message });
-        window.setTimeout(() => setStatus(null), 4000);
+        const data = msg.data as { message?: string };
+        handleOperationComplete(true, data.message || 'インポートが完了しました。');
       }
 
+      // エラー
       if (msg.type === 'ERROR' && msg.data) {
-        setIsLoading(false);
-        if (importTimeoutRef.current) {
-          clearTimeout(importTimeoutRef.current);
-          importTimeoutRef.current = null;
-        }
-        const message = (msg.data as any).message || 'インポートに失敗しました。';
-        setStatus({ type: 'error', text: message });
-        window.setTimeout(() => setStatus(null), 6000);
+        const data = msg.data as { message?: string };
+        handleOperationComplete(false, data.message || 'インポートに失敗しました。');
       }
       
+      // データ読み込みレスポンス
       if (msg.type === 'LOAD_DATA_RESPONSE' && msg.data) {
-        if (msg.data.notion_api_key) setApiKey(msg.data.notion_api_key);
-        if (msg.data.notion_database_id) setDatabaseId(msg.data.notion_database_id);
-        if (msg.data.collection_name) setCollectionName(msg.data.collection_name);
-        if (msg.data.collection_mode) setCollectionMode(msg.data.collection_mode);
-        if (msg.data.overwrite_existing !== undefined) setOverwriteExisting(msg.data.overwrite_existing);
-        if ((msg.data as any).delete_removed_variables !== undefined) setDeleteRemovedVariables((msg.data as any).delete_removed_variables);
-        if ((msg.data as any).notion_proxy_url) setProxyUrl((msg.data as any).notion_proxy_url);
-        if ((msg.data as any).notion_proxy_token) setProxyToken((msg.data as any).notion_proxy_token);
-        
-        // データ読み込み完了フラグを立てる
+        applySavedData(msg.data as SavedFormData);
         hasLoadedDataRef.current = true;
       }
     };
     
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [applySavedData, handleOperationComplete, resetTimeout]);
 
   // 入力値を保存する関数
-  const saveFormData = () => {
+  const saveFormData = useCallback(() => {
     // 空の値は送信しない（空文字列で既存の値を上書きしないため）
-    const dataToSave: any = {
+    const dataToSave: Partial<SavedFormData> = {
       collection_name: collectionName,
       collection_mode: collectionMode,
       overwrite_existing: overwriteExisting,
@@ -141,7 +171,7 @@ const ImportTab = () => {
         data: dataToSave
       }
     }, '*');
-  };
+  }, [apiKey, databaseId, collectionName, collectionMode, overwriteExisting, deleteRemovedVariables, proxyUrl, proxyToken]);
 
   // 各入力フィールドの変更時に自動保存
   useEffect(() => {
@@ -150,8 +180,7 @@ const ImportTab = () => {
       return;
     }
     saveFormData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiKey, databaseId, collectionName, collectionMode, overwriteExisting, deleteRemovedVariables, proxyUrl, proxyToken]);
+  }, [saveFormData]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -171,16 +200,13 @@ const ImportTab = () => {
 
     try {
       // 先にローディングを表示
-      if (importTimeoutRef.current) {
-        clearTimeout(importTimeoutRef.current);
-      }
+      clearImportTimeout();
       setIsLoading(true);
-      setStatus({ type: 'info', text: 'インポートを開始しました...' });
-      importTimeoutRef.current = window.setTimeout(() => {
-        setIsLoading(false);
-        setStatus({ type: 'error', text: 'インポートがタイムアウトしました。通信状況を確認してください。' });
-        importTimeoutRef.current = null;
-      }, 30000);
+      setStatus({ type: 'info', text: 'Notionからデータを取得中...' });
+      
+      // 初期タイムアウト（Notionデータ取得用）
+      currentTimeoutMsRef.current = DEFAULT_TIMEOUT_MS;
+      importTimeoutRef.current = window.setTimeout(handleTimeout, currentTimeoutMsRef.current);
 
       // 次フレームで表示更新
       await new Promise(requestAnimationFrame);
@@ -197,9 +223,18 @@ const ImportTab = () => {
       // 変換ロジックを専用モジュールで実行
       const variables = await transformNotionResponse(raw, apiKey, proxyUrl, proxyToken, fetchNotionPage);
       if (!Array.isArray(variables) || variables.length === 0) {
+        clearImportTimeout();
+        setIsLoading(false);
         setStatus({ type: 'error', text: 'Notionから有効なデータを取得できませんでした。' });
         return;
       }
+
+      // 変数数に基づいて動的にタイムアウト時間を計算・更新
+      currentTimeoutMsRef.current = calculateTimeout(variables.length);
+      clearImportTimeout();
+      importTimeoutRef.current = window.setTimeout(handleTimeout, currentTimeoutMsRef.current);
+      
+      setStatus({ type: 'info', text: `${variables.length} 件の変数をインポート中...` });
 
       const settings: ImportSettings & { variables: NotionVariable[] } = {
         apiKey: apiKey,
@@ -213,24 +248,28 @@ const ImportTab = () => {
         variables
       };
 
-    // フォームデータを含めて送信
-    parent.postMessage({
-      pluginMessage: {
-        type: 'IMPORT_FROM_NOTION',
-        data: settings,
-        formData: {
-          notion_api_key: apiKey,
-          notion_database_id: databaseId,
-          collection_name: collectionName,
-          collection_mode: collectionMode,
-            overwrite_existing: overwriteExisting,
-            delete_removed_variables: deleteRemovedVariables,
-            notion_proxy_url: proxyUrl,
-            notion_proxy_token: proxyToken
-          }
-      }
-    }, '*');
+      // フォームデータを含めて送信
+      const formData: SavedFormData = {
+        notion_api_key: apiKey,
+        notion_database_id: databaseId,
+        collection_name: collectionName,
+        collection_mode: collectionMode,
+        overwrite_existing: overwriteExisting,
+        delete_removed_variables: deleteRemovedVariables,
+        notion_proxy_url: proxyUrl,
+        notion_proxy_token: proxyToken
+      };
+
+      parent.postMessage({
+        pluginMessage: {
+          type: 'IMPORT_FROM_NOTION',
+          data: settings,
+          formData
+        }
+      }, '*');
     } catch (err) {
+      // エラー時は必ずタイムアウトをクリア
+      clearImportTimeout();
       setIsLoading(false);
       setStatus({ type: 'error', text: err instanceof Error ? err.message : 'Notionデータ取得に失敗しました。' });
     }

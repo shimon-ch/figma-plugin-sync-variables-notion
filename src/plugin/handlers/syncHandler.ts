@@ -73,7 +73,22 @@ export async function handleImportFromNotion(settings: ImportSettings & { variab
     const ordered = variables; // 受け取った順（DB順）を保持
 
     // 1パス目: 値を設定（参照が未解決ならフォールバック）
-    for (const variable of ordered) {
+    for (let i = 0; i < ordered.length; i++) {
+      const variable = ordered[i];
+      
+      // 10件ごとに進捗を通知（タイムアウト防止）
+      if (i % 10 === 0) {
+        figma.ui.postMessage({
+          type: MessageType.PROGRESS,
+          data: {
+            current: i,
+            total: ordered.length,
+            phase: 'importing',
+            message: `インポート中: ${i + 1}/${ordered.length} 件を処理中...`
+          }
+        });
+      }
+      
       try {
         const fullName = variable.group 
           ? `${variable.group}/${variable.name}`
@@ -175,20 +190,34 @@ export async function handleImportFromNotion(settings: ImportSettings & { variab
       logger.log(`  - Total Figma variables in this collection: ${collectionVars.length}`);
       
       // 既存変数の中で、Notionに存在しないものを削除
-      for (const figmaVar of collectionVars) {
+      const varsToDelete = collectionVars.filter(v => !notionVariableNames.has(v.name));
+      
+      for (let i = 0; i < varsToDelete.length; i++) {
+        const figmaVar = varsToDelete[i];
         const varName = figmaVar.name;
         
-        if (!notionVariableNames.has(varName)) {
-          try {
-            logger.log(`  🗑️  Variable not in Notion: "${varName}"`);
-            logger.warn(`    ⚠️  Warning: Deleting this variable will break any references to it in your design`);
-            
-            figmaVar.remove();
-            deletedCount++;
-            logger.log(`    ✅ Deleted: "${varName}"`);
-          } catch (error) {
-            logger.error(`    ❌ Failed to delete "${varName}":`, error);
-          }
+        // 10件ごとに進捗を通知（タイムアウト防止）
+        if (i % 10 === 0) {
+          figma.ui.postMessage({
+            type: MessageType.PROGRESS,
+            data: {
+              current: i,
+              total: varsToDelete.length,
+              phase: 'deleting',
+              message: `削除中: ${i + 1}/${varsToDelete.length} 件を処理中...`
+            }
+          });
+        }
+        
+        try {
+          logger.log(`  🗑️  Variable not in Notion: "${varName}"`);
+          logger.warn(`    ⚠️  Warning: Deleting this variable will break any references to it in your design`);
+          
+          figmaVar.remove();
+          deletedCount++;
+          logger.log(`    ✅ Deleted: "${varName}"`);
+        } catch (error) {
+          logger.error(`    ❌ Failed to delete "${varName}":`, error);
         }
       }
       
