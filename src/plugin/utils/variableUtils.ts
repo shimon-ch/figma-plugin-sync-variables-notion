@@ -297,7 +297,10 @@ export async function updateVariable(
   if (isVariableReference || isAliasWithFallback) {
     // Variable参照の場合 - 参照先の型を使用して変数を作成
     const raw = String(variable.value);
-    const [refPart, fbPart] = isAliasWithFallback ? raw.split('||') : [raw, undefined];
+    // split数を2に制限し、空白を除去（フォールバック値に||が含まれるケースに対応）
+    const [refPart, fbPart] = isAliasWithFallback
+      ? raw.split('||', 2).map(s => s.trim())
+      : [raw.trim(), undefined];
     const referenceName = refPart.startsWith('{') && refPart.endsWith('}') ? refPart.slice(1, -1) : refPart;
     logger.log(`Setting variable reference: ${variableName} -> ${referenceName}`);
     
@@ -344,11 +347,21 @@ export async function updateVariable(
         valueToSet = parseFallbackValue(fbPart, fallbackType);
       } else {
         logger.warn(`Reference variable not found: ${referenceName}, using direct value instead`);
-        // 既存の変数がない場合は作成（デフォルト型）
+        // 参照先もフォールバックもない場合:
+        // - Notion側のtypeがあればそれを優先
+        // - なければvalueから型を自動判定
+        const inferredType = variable.type || detectVariableType(variable.value);
+        const inferredFigmaType = convertToFigmaVariableType(inferredType);
+        
+        // 既存の変数がない場合は推論した型で作成
         if (!figmaVariable) {
-          figmaVariable = figma.variables.createVariable(variableName, collection, figmaType);
-          logger.log(`  - Created new variable with default type: ${figmaType}`);
+          figmaVariable = figma.variables.createVariable(variableName, collection, inferredFigmaType);
+          logger.log(`  - Created new variable with inferred type: ${inferredFigmaType}`);
+        } else if (figmaVariable.resolvedType !== inferredFigmaType) {
+          figmaVariable.remove();
+          figmaVariable = figma.variables.createVariable(variableName, collection, inferredFigmaType);
         }
+        
         valueToSet = parseVariableValue(variable);
       }
     }
