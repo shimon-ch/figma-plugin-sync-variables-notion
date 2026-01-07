@@ -80,40 +80,54 @@ const SyncPairList = ({
       const targetKey = e.target.key as string;
       const draggedKeys = [...e.keys] as string[];
 
-      // 現在の配列から新しい配列を作成
-      const newPairs = [...pairs];
-      const targetIndex = newPairs.findIndex((p) => p.id === targetKey);
-
-      // ドラッグされたアイテムを取得して削除
+      // ドラッグされたアイテムを収集
       const draggedItems: CollectionDbPair[] = [];
       for (const key of draggedKeys) {
-        const index = newPairs.findIndex((p) => p.id === key);
-        if (index !== -1) {
-          draggedItems.push(newPairs[index]);
+        const item = pairs.find((p) => p.id === key);
+        if (item) {
+          draggedItems.push(item);
         }
       }
 
-      // ドラッグされたアイテムを元の配列から削除
-      const filteredPairs = newPairs.filter(
+      // ドラッグされたアイテムがない場合は何もしない
+      if (draggedItems.length === 0) {
+        return;
+      }
+
+      // ドラッグされたアイテムを除外
+      const filteredPairs = pairs.filter(
         (p) => !draggedKeys.includes(p.id)
       );
 
-      // ターゲット位置を再計算（削除後のインデックス）
-      let insertIndex = filteredPairs.findIndex((p) => p.id === targetKey);
-      if (insertIndex === -1) {
-        // ターゲットがドラッグされたアイテムの場合、元のtargetIndexを使用
-        insertIndex = Math.min(targetIndex, filteredPairs.length);
-      }
+      // ターゲットの挿入位置を計算
+      let insertIndex: number;
+      const targetIndex = filteredPairs.findIndex((p) => p.id === targetKey);
 
-      // dropPositionに応じて挿入位置を調整
-      if (e.target.dropPosition === 'after') {
-        insertIndex += 1;
+      if (targetIndex !== -1) {
+        // ターゲットが存在する場合
+        insertIndex = targetIndex;
+        if (e.target.dropPosition === 'after') {
+          insertIndex += 1;
+        }
+      } else {
+        // ターゲットがドラッグされたアイテムの場合、または存在しない場合
+        // 元の位置を基準にする
+        const originalTargetIndex = pairs.findIndex((p) => p.id === targetKey);
+        if (originalTargetIndex !== -1) {
+          // ターゲットがドラッグされたアイテムの1つ
+          insertIndex = Math.min(originalTargetIndex, filteredPairs.length);
+        } else {
+          // ターゲットが見つからない（削除された可能性）
+          // 配列の末尾に追加
+          insertIndex = filteredPairs.length;
+        }
       }
 
       // 新しい位置に挿入
-      filteredPairs.splice(insertIndex, 0, ...draggedItems);
+      const reorderedPairs = [...filteredPairs];
+      reorderedPairs.splice(insertIndex, 0, ...draggedItems);
 
-      onPairsChange(filteredPairs);
+      onPairsChange(reorderedPairs);
     },
     renderDropIndicator(target) {
       return (
