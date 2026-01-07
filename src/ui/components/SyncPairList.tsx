@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import {
   GridList,
   GridListItem,
@@ -233,13 +233,10 @@ const SyncPairList = ({
     [collections, updatePair, removePair, onSave]
   );
 
-  // GridList用のitems
-  const items = useMemo(() => pairs, [pairs]);
-
   return (
     <GridList
       aria-label="同期ペアリスト（ドラッグで並べ替え可能）"
-      items={items}
+      items={pairs}
       dragAndDropHooks={dragAndDropHooks}
       selectionMode="none"
       className="sync-pair-list space-y-2"
