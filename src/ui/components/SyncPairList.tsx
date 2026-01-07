@@ -260,8 +260,14 @@ const SyncPairList = ({
   );
 };
 
-// 空のペアを作成するヘルパー関数
+// UUID生成関数（crypto.randomUUID()を優先、フォールバック付き）
 const generateUUID = (): string => {
+  // ブラウザ環境ではcrypto.randomUUID()を使用
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  
+  // フォールバック: カスタムUUID v4実装
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
     const v = c === 'x' ? r : (r & 0x3) | 0x8;
@@ -269,6 +275,7 @@ const generateUUID = (): string => {
   });
 };
 
+// 空のペアを作成するヘルパー関数
 const createEmptyPair = (): CollectionDbPair => ({
   id: generateUUID(),
   collectionName: '',
