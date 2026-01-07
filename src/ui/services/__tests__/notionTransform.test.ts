@@ -33,8 +33,9 @@ describe('notionTransform', () => {
     it('should convert percentage to byte value', () => {
       expect(pctToByte('0%')).toBe(0);
       expect(pctToByte('100%')).toBe(255);
-      // 50% = 127.5, Math.round(127.5) = 128, but implementation uses Math.round which can vary
-      expect(pctToByte('50%')).toBe(127); // 50 * 2.55 = 127.5 -> Math.round = 127 or 128
+      // 50 * 2.55 = 127.49999999999999 (floating point precision)
+      // Math.round(127.49999999999999) = 127 (not 128)
+      expect(pctToByte('50%')).toBe(127);
     });
 
     it('should clamp values outside 0-100 range', () => {
