@@ -3,7 +3,8 @@ import { fetchNotionData, fetchNotionPage } from '../services/notionProxy';
 import { transformNotionResponse } from '../services/notionTransform';
 import { ImportSettings, FieldMapping, NotionVariable, SavedFormData, ProgressData, CollectionDbPair } from '../../shared/types';
 import FieldMappingEditor from './FieldMappingEditor';
-import SyncPairList, { createEmptyPair, generateUUID } from './SyncPairList';
+import SyncPairList, { createEmptyPair } from './SyncPairList';
+import { generateUUID } from '../../shared/uuid';
 
 interface Collection {
   id: string;
@@ -256,46 +257,10 @@ const ImportTab = () => {
       const SINGLE_PAIR_TIMEOUT = 120000; // 2分
       
       return new Promise((resolve) => {
-        let resolved = false;
         let timeoutId: number | null = null;
         
-        const handleImportResult = (event: MessageEvent) => {
-          const msg = event.data.pluginMessage;
-          if (!msg) return;
-          
-          if (msg.type === 'SUCCESS' || msg.type === 'OPERATION_STATUS') {
-            if (resolved) return;
-            resolved = true;
-            
-            const data = msg.data as { success?: boolean; status?: string; message?: string };
-            const ok = msg.type === 'SUCCESS' || 
-              (typeof data.success === 'boolean' ? data.success : data.status === 'success');
-            
-            cleanup();
-            resolve({
-              success: ok,
-              message: ok ? `${collectionName}: ${variables.length} 件インポート成功` : `${collectionName}: インポート失敗`,
-              collectionName,
-              shouldAbort: !ok // インポート処理自体が失敗した場合は中断
-            });
-          }
-          
-          if (msg.type === 'ERROR') {
-            if (resolved) return;
-            resolved = true;
-            
-            cleanup();
-            const data = msg.data as { message?: string };
-            resolve({
-              success: false,
-              message: `${collectionName}: ${data.message || 'エラーが発生しました'}`,
-              collectionName,
-              shouldAbort: true // エラーの場合は中断
-            });
-          }
-        };
-        
         // クリーンアップ関数（リスナーとタイムアウトの両方を削除）
+        // リスナーを即座に削除することでレースコンディションを防止
         const cleanup = () => {
           window.removeEventListener('message', handleImportResult);
           if (timeoutId !== null) {
@@ -304,10 +269,44 @@ const ImportTab = () => {
           }
         };
         
+        const handleImportResult = (event: MessageEvent) => {
+          const msg = event.data.pluginMessage;
+          if (!msg) return;
+          
+          if (msg.type === 'SUCCESS' || msg.type === 'OPERATION_STATUS') {
+            // 即座にリスナーを削除してレースコンディションを防止
+            cleanup();
+            
+            const data = msg.data as { success?: boolean; status?: string; message?: string };
+            const ok = msg.type === 'SUCCESS' || 
+              (typeof data.success === 'boolean' ? data.success : data.status === 'success');
+            
+            resolve({
+              success: ok,
+              message: ok ? `${collectionName}: ${variables.length} 件インポート成功` : `${collectionName}: インポート失敗`,
+              collectionName,
+              shouldAbort: !ok // インポート処理自体が失敗した場合は中断
+            });
+            return;
+          }
+          
+          if (msg.type === 'ERROR') {
+            // 即座にリスナーを削除してレースコンディションを防止
+            cleanup();
+            
+            const data = msg.data as { message?: string };
+            resolve({
+              success: false,
+              message: `${collectionName}: ${data.message || 'エラーが発生しました'}`,
+              collectionName,
+              shouldAbort: true // エラーの場合は中断
+            });
+            return;
+          }
+        };
+        
         // タイムアウト設定
         timeoutId = window.setTimeout(() => {
-          if (resolved) return;
-          resolved = true;
           cleanup();
           resolve({
             success: false,

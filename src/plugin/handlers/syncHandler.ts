@@ -138,8 +138,13 @@ export async function handleImportFromNotion(settings: ImportSettings & { variab
             logger.log(`  - Using fallback value: ${fb}`);
             const backup = { ...variable, value: fb };
             const newVar = await updateVariable(collection, backup, allFigmaVariables);
-            // 新規作成した変数をリストに追加（後続の参照解決で使用可能にする）
-            allFigmaVariables.push(newVar);
+            // 新規作成した変数をリストに追加（重複チェック付き）
+            const existingIndex = allFigmaVariables.findIndex(v => v.id === newVar.id);
+            if (existingIndex === -1) {
+              allFigmaVariables.push(newVar);
+            } else {
+              allFigmaVariables[existingIndex] = newVar;
+            }
             importedCount++;
             continue;
           }

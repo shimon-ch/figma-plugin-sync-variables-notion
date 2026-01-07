@@ -7,6 +7,7 @@ import {
   DropIndicator,
 } from 'react-aria-components';
 import type { CollectionDbPair } from '../../shared/types';
+import { generateUUID } from '../../shared/uuid';
 
 interface Collection {
   id: string;
@@ -260,21 +261,6 @@ const SyncPairList = ({
   );
 };
 
-// UUID生成関数（crypto.randomUUID()を優先、フォールバック付き）
-const generateUUID = (): string => {
-  // ブラウザ環境ではcrypto.randomUUID()を使用
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  
-  // フォールバック: カスタムUUID v4実装
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-    const r = (Math.random() * 16) | 0;
-    const v = c === 'x' ? r : (r & 0x3) | 0x8;
-    return v.toString(16);
-  });
-};
-
 // 空のペアを作成するヘルパー関数
 const createEmptyPair = (): CollectionDbPair => ({
   id: generateUUID(),
@@ -285,4 +271,5 @@ const createEmptyPair = (): CollectionDbPair => ({
 });
 
 export default SyncPairList;
-export { createEmptyPair, generateUUID };
+export { createEmptyPair };
+// generateUUID は src/shared/uuid.ts から直接インポートしてください

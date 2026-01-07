@@ -49,8 +49,11 @@ vi.stubGlobal('import', {
 });
 
 // crypto.randomUUID のモック（Node.js環境用）
-if (typeof crypto === 'undefined' || !crypto.randomUUID) {
+// 既存のcryptoメソッドを保持しつつ、randomUUIDが無い場合のみ追加
+if (typeof globalThis.crypto === 'undefined' || !globalThis.crypto.randomUUID) {
+  const existingCrypto = (globalThis.crypto ?? {}) as Partial<Crypto> & Record<string, unknown>;
   vi.stubGlobal('crypto', {
+    ...existingCrypto,
     randomUUID: () => 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
       const r = Math.random() * 16 | 0;
       const v = c === 'x' ? r : (r & 0x3 | 0x8);
