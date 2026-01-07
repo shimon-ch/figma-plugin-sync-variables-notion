@@ -400,13 +400,21 @@ const ImportTab = () => {
       
       if (aborted) {
         // 中断が発生した場合
-        const failedPair = results[results.length - 1]; // 最後に処理したペアが失敗原因
-        let statusText = `「${failedPair.collectionName}」でエラーが発生したため処理を中断しました。`;
+        let statusText: string;
+        if (results.length > 0) {
+          const failedPair = results[results.length - 1]; // 最後に処理したペアが失敗原因
+          statusText = `「${failedPair.collectionName}」でエラーが発生したため処理を中断しました。`;
+        } else {
+          // 何らかの理由で結果がない状態で中断した場合のフォールバックメッセージ
+          statusText = 'エラーが発生したため処理を中断しました。';
+        }
         const details: string[] = [];
         if (successCount > 0) details.push(`${successCount}件成功`);
         details.push(`${failCount}件失敗`);
         if (skippedCount > 0) details.push(`${skippedCount}件未処理`);
-        statusText += `（${details.join('、')}）`;
+        if (details.length > 0) {
+          statusText += `（${details.join('、')}）`;
+        }
         
         setStatus({ 
           type: 'error', 

@@ -85,7 +85,6 @@ html:lang(ja) body {
 }
 
 .drop-indicator[data-drop-target] {
-  background: oklch(var(--p));
   box-shadow: 0 0 8px oklch(var(--p) / 0.5);
 }
 
