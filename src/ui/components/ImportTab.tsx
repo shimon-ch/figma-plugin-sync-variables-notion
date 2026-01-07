@@ -1,8 +1,10 @@
 import { useState, useEffect, FormEvent, useRef, useCallback } from 'react';
 import { fetchNotionData, fetchNotionPage } from '../services/notionProxy';
 import { transformNotionResponse } from '../services/notionTransform';
-import { ImportSettings, FieldMapping, NotionVariable, SavedFormData, ProgressData } from '../../shared/types';
+import { ImportSettings, FieldMapping, NotionVariable, SavedFormData, ProgressData, CollectionDbPair } from '../../shared/types';
 import FieldMappingEditor from './FieldMappingEditor';
+import SyncPairList, { createEmptyPair } from './SyncPairList';
+import { generateUUID } from '../../shared/uuid';
 
 interface Collection {
   id: string;
@@ -10,24 +12,15 @@ interface Collection {
   variableIds?: string[];
 }
 
-// タイムアウト時間を計算する関数
-const calculateTimeout = (variableCount: number): number => {
-  // 基本30秒 + 変数数 x 0.5秒、最大5分
-  return Math.min(30000 + (variableCount * 500), 300000);
-};
-
 // デフォルトのタイムアウト（変数数不明時）
 const DEFAULT_TIMEOUT_MS = 60000; // 1分
 
 const ImportTab = () => {
   const [apiKey, setApiKey] = useState('');
-  const [databaseId, setDatabaseId] = useState('');
   const [proxyUrl, setProxyUrl] = useState('');
-  const [collectionName, setCollectionName] = useState('Design Tokens');
-  const [collectionMode, setCollectionMode] = useState<'new' | 'existing'>('existing');
+  const [proxyToken, setProxyToken] = useState('');
   const [overwriteExisting, setOverwriteExisting] = useState(true);
   const [deleteRemovedVariables, setDeleteRemovedVariables] = useState(false);
-  const [proxyToken, setProxyToken] = useState('');
   const [mappings, setMappings] = useState<FieldMapping[]>([
     { notionField: 'Name', variableProperty: 'name' },
     { notionField: 'Value', variableProperty: 'value' },
@@ -41,6 +34,12 @@ const ImportTab = () => {
   const importTimeoutRef = useRef<number | null>(null);
   const currentTimeoutMsRef = useRef<number>(DEFAULT_TIMEOUT_MS);
   const hasLoadedDataRef = useRef(false);
+  
+  // 連続インポート中のセッションID（グローバルメッセージハンドラの誤動作防止用）
+  const importRunIdRef = useRef<string | null>(null);
+
+  // コレクション+DBIDペアの状態
+  const [collectionDbPairs, setCollectionDbPairs] = useState<CollectionDbPair[]>([createEmptyPair()]);
 
   // タイムアウトをクリアするヘルパー関数
   const clearImportTimeout = useCallback(() => {
@@ -66,17 +65,24 @@ const ImportTab = () => {
   // 保存データを適用するヘルパー関数
   const applySavedData = useCallback((data: SavedFormData) => {
     if (data.notion_api_key) setApiKey(data.notion_api_key);
-    if (data.notion_database_id) setDatabaseId(data.notion_database_id);
-    if (data.collection_name) setCollectionName(data.collection_name);
-    if (data.collection_mode) setCollectionMode(data.collection_mode);
     if (data.overwrite_existing !== undefined) setOverwriteExisting(data.overwrite_existing);
     if (data.delete_removed_variables !== undefined) setDeleteRemovedVariables(data.delete_removed_variables);
     if (data.notion_proxy_url) setProxyUrl(data.notion_proxy_url);
     if (data.notion_proxy_token) setProxyToken(data.notion_proxy_token);
+    // コレクション+DBIDペアの復元
+    if (data.collection_db_pairs && data.collection_db_pairs.length > 0) {
+      setCollectionDbPairs(data.collection_db_pairs);
+    }
   }, []);
 
   // 完了処理の共通ハンドラー（SUCCESS, ERROR, OPERATION_STATUS用）
+  // 注意: 連続インポート中（importRunIdRef.current !== null）はこのハンドラを呼ばない
   const handleOperationComplete = useCallback((success: boolean, message: string) => {
+    // 連続インポート中はグローバルハンドラからの呼び出しを無視
+    // （importSinglePair内のローカルリスナーが個別に処理する）
+    if (importRunIdRef.current !== null) {
+      return;
+    }
     setIsLoading(false);
     clearImportTimeout();
     setStatus({ type: success ? 'success' : 'error', text: message });
@@ -153,15 +159,13 @@ const ImportTab = () => {
   const saveFormData = useCallback(() => {
     // 空の値は送信しない（空文字列で既存の値を上書きしないため）
     const dataToSave: Partial<SavedFormData> = {
-      collection_name: collectionName,
-      collection_mode: collectionMode,
       overwrite_existing: overwriteExisting,
       delete_removed_variables: deleteRemovedVariables,
+      collection_db_pairs: collectionDbPairs,
     };
     
     // 空でない値のみ追加
     if (apiKey && apiKey.trim()) dataToSave.notion_api_key = apiKey;
-    if (databaseId && databaseId.trim()) dataToSave.notion_database_id = databaseId;
     if (proxyUrl && proxyUrl.trim()) dataToSave.notion_proxy_url = proxyUrl;
     if (proxyToken && proxyToken.trim()) dataToSave.notion_proxy_token = proxyToken;
     
@@ -171,7 +175,7 @@ const ImportTab = () => {
         data: dataToSave
       }
     }, '*');
-  }, [apiKey, databaseId, collectionName, collectionMode, overwriteExisting, deleteRemovedVariables, proxyUrl, proxyToken]);
+  }, [apiKey, overwriteExisting, deleteRemovedVariables, proxyUrl, proxyToken, collectionDbPairs]);
 
   // 各入力フィールドの変更時に自動保存
   useEffect(() => {
@@ -182,98 +186,271 @@ const ImportTab = () => {
     saveFormData();
   }, [saveFormData]);
 
-  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    
-    if (!apiKey || !databaseId) {
-      alert('必須項目を入力してください');
-      return;
-    }
-    
-    if (collectionMode === 'existing' && !collectionName) {
-      alert('既存のコレクションを選択してください');
-      return;
-    }
+  // ペアを追加
+  const addPair = useCallback(() => {
+    setCollectionDbPairs(prev => [...prev, createEmptyPair()]);
+  }, []);
 
-    // 送信前に最新のデータを保存
-    saveFormData();
 
+  // 全選択/全解除
+  const toggleAllPairs = useCallback((enabled: boolean) => {
+    setCollectionDbPairs(prev => prev.map(p => ({ ...p, enabled })));
+  }, []);
+
+  // 単一ペアのインポート処理結果の型
+  type ImportResult = {
+    success: boolean;
+    message: string;
+    collectionName: string;
+    shouldAbort: boolean; // trueの場合、後続のペア処理を中断
+  };
+
+  // 単一ペアのインポート処理
+  const importSinglePair = async (
+    pair: CollectionDbPair,
+    currentIndex: number,
+    totalCount: number
+  ): Promise<ImportResult> => {
+    const { collectionName, databaseId, isManualInput } = pair;
+    
     try {
-      // 先にローディングを表示
-      clearImportTimeout();
-      setIsLoading(true);
-      setStatus({ type: 'info', text: 'Notionからデータを取得中...' });
+      setStatus({ type: 'info', text: `[${currentIndex + 1}/${totalCount}] ${collectionName}: Notionからデータを取得中...` });
       
-      // 初期タイムアウト（Notionデータ取得用）
-      currentTimeoutMsRef.current = DEFAULT_TIMEOUT_MS;
-      importTimeoutRef.current = window.setTimeout(handleTimeout, currentTimeoutMsRef.current);
-
-      // 次フレームで表示更新
-      await new Promise(requestAnimationFrame);
-
-      // UI側でNotionデータを取得
-      // Notionは明示的にsortしないと順序が保証されないため、created_time昇順でソート
+      // Notionデータを取得
       const notionResponse = await fetchNotionData(apiKey, databaseId, proxyUrl, {
         sorts: [{ timestamp: 'created_time', direction: 'ascending' }]
       }, proxyToken);
       
-      // Notion query の標準レスポンスは { results: [...] }
       const raw = notionResponse?.results || [];
-
-      // 変換ロジックを専用モジュールで実行
       const variables = await transformNotionResponse(raw, apiKey, proxyUrl, proxyToken, fetchNotionPage);
+      
       if (!Array.isArray(variables) || variables.length === 0) {
-        clearImportTimeout();
-        setIsLoading(false);
-        setStatus({ type: 'error', text: 'Notionから有効なデータを取得できませんでした。' });
-        return;
+        // データが空の場合は中断せず続行（データがないだけなので）
+        return { 
+          success: false, 
+          message: `${collectionName}: 有効なデータがありません`,
+          collectionName,
+          shouldAbort: false
+        };
       }
 
-      // 変数数に基づいて動的にタイムアウト時間を計算・更新
-      currentTimeoutMsRef.current = calculateTimeout(variables.length);
-      clearImportTimeout();
-      importTimeoutRef.current = window.setTimeout(handleTimeout, currentTimeoutMsRef.current);
-      
-      setStatus({ type: 'info', text: `${variables.length} 件の変数をインポート中...` });
+      setStatus({ type: 'info', text: `[${currentIndex + 1}/${totalCount}] ${collectionName}: ${variables.length} 件の変数をインポート中...` });
+
+      // コレクションの存在チェック（手入力モードの場合）
+      // 存在しない場合は新規作成フラグを立てる
+      const collectionExists = collections.some(c => c.name === collectionName);
+      const shouldCreateNew = (isManualInput === true) && !collectionExists;
 
       const settings: ImportSettings & { variables: NotionVariable[] } = {
         apiKey: apiKey,
         notionApiKey: apiKey,
         databaseId,
         collectionName,
-        createNewCollection: collectionMode === 'new',
+        createNewCollection: shouldCreateNew,
         overwriteExisting,
         deleteRemovedVariables,
         mappings,
         variables
       };
 
-      // フォームデータを含めて送信
-      const formData: SavedFormData = {
-        notion_api_key: apiKey,
-        notion_database_id: databaseId,
-        collection_name: collectionName,
-        collection_mode: collectionMode,
-        overwrite_existing: overwriteExisting,
-        delete_removed_variables: deleteRemovedVariables,
-        notion_proxy_url: proxyUrl,
-        notion_proxy_token: proxyToken
-      };
-
-      parent.postMessage({
-        pluginMessage: {
-          type: 'IMPORT_FROM_NOTION',
-          data: settings,
-          formData
-        }
-      }, '*');
+      // 同期的にインポートを実行するためのPromise（タイムアウト付き）
+      const SINGLE_PAIR_TIMEOUT = 120000; // 2分
+      
+      return new Promise((resolve) => {
+        let timeoutId: number | null = null;
+        
+        // クリーンアップ関数（リスナーとタイムアウトの両方を削除）
+        // リスナーを即座に削除することでレースコンディションを防止
+        const cleanup = () => {
+          window.removeEventListener('message', handleImportResult);
+          if (timeoutId !== null) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
+          }
+        };
+        
+        const handleImportResult = (event: MessageEvent) => {
+          const msg = event.data.pluginMessage;
+          if (!msg) return;
+          
+          if (msg.type === 'SUCCESS' || msg.type === 'OPERATION_STATUS') {
+            // 即座にリスナーを削除してレースコンディションを防止
+            cleanup();
+            
+            const data = msg.data as { success?: boolean; status?: string; message?: string };
+            const ok = msg.type === 'SUCCESS' || 
+              (typeof data.success === 'boolean' ? data.success : data.status === 'success');
+            
+            resolve({
+              success: ok,
+              message: ok ? `${collectionName}: ${variables.length} 件インポート成功` : `${collectionName}: インポート失敗`,
+              collectionName,
+              shouldAbort: !ok // インポート処理自体が失敗した場合は中断
+            });
+            return;
+          }
+          
+          if (msg.type === 'ERROR') {
+            // 即座にリスナーを削除してレースコンディションを防止
+            cleanup();
+            
+            const data = msg.data as { message?: string };
+            resolve({
+              success: false,
+              message: `${collectionName}: ${data.message || 'エラーが発生しました'}`,
+              collectionName,
+              shouldAbort: true // エラーの場合は中断
+            });
+            return;
+          }
+        };
+        
+        // タイムアウト設定
+        timeoutId = window.setTimeout(() => {
+          cleanup();
+          resolve({
+            success: false,
+            message: `${collectionName}: インポートがタイムアウトしました`,
+            collectionName,
+            shouldAbort: true
+          });
+        }, SINGLE_PAIR_TIMEOUT);
+        
+        window.addEventListener('message', handleImportResult);
+        
+        parent.postMessage({
+          pluginMessage: {
+            type: 'IMPORT_FROM_NOTION',
+            data: settings
+          }
+        }, '*');
+      });
     } catch (err) {
-      // エラー時は必ずタイムアウトをクリア
-      clearImportTimeout();
-      setIsLoading(false);
-      setStatus({ type: 'error', text: err instanceof Error ? err.message : 'Notionデータ取得に失敗しました。' });
+      // Notionデータ取得やその他の例外は中断
+      return {
+        success: false,
+        message: `${collectionName}: ${err instanceof Error ? err.message : 'エラーが発生しました'}`,
+        collectionName,
+        shouldAbort: true
+      };
     }
   };
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    
+    if (!apiKey) {
+      alert('Notion APIキーを入力してください');
+      return;
+    }
+    
+    // 有効なペアをフィルタリング
+    const enabledPairs = collectionDbPairs.filter(p => 
+      p.enabled && p.collectionName.trim() && p.databaseId.trim()
+    );
+    
+    if (enabledPairs.length === 0) {
+      alert('インポート対象のペアを選択してください。コレクション名とデータベースIDの両方が必要です。');
+      return;
+    }
+
+    // 送信前に最新のデータを保存
+    saveFormData();
+
+    // 連続インポートセッション開始（グローバルハンドラの誤動作防止）
+    const runId = generateUUID();
+    importRunIdRef.current = runId;
+
+    try {
+      clearImportTimeout();
+      setIsLoading(true);
+      
+      // タイムアウト設定（ペア数に応じて延長）
+      currentTimeoutMsRef.current = DEFAULT_TIMEOUT_MS * enabledPairs.length;
+      importTimeoutRef.current = window.setTimeout(handleTimeout, currentTimeoutMsRef.current);
+
+      const results: ImportResult[] = [];
+      let aborted = false;
+      
+      // 順番にインポート実行
+      for (let i = 0; i < enabledPairs.length; i++) {
+        const pair = enabledPairs[i];
+        resetTimeout(); // 各ペア処理前にタイムアウトリセット
+        
+        const result = await importSinglePair(pair, i, enabledPairs.length);
+        results.push(result);
+        
+        // インポート処理自体が失敗した場合は後続を中断
+        if (result.shouldAbort) {
+          aborted = true;
+          break;
+        }
+      }
+
+      // 結果サマリー
+      clearImportTimeout();
+      setIsLoading(false);
+      
+      // 連続インポートセッション終了
+      importRunIdRef.current = null;
+      
+      const successCount = results.filter(r => r.success).length;
+      const failCount = results.filter(r => !r.success).length;
+      const skippedCount = enabledPairs.length - results.length; // 中断により未処理のペア数
+      
+      if (aborted) {
+        // 中断が発生した場合
+        let statusText: string;
+        if (results.length > 0) {
+          const failedPair = results[results.length - 1]; // 最後に処理したペアが失敗原因
+          statusText = `「${failedPair.collectionName}」でエラーが発生したため処理を中断しました。`;
+        } else {
+          // 何らかの理由で結果がない状態で中断した場合のフォールバックメッセージ
+          statusText = 'エラーが発生したため処理を中断しました。';
+        }
+        const details: string[] = [];
+        if (successCount > 0) details.push(`${successCount}件成功`);
+        details.push(`${failCount}件失敗`);
+        if (skippedCount > 0) details.push(`${skippedCount}件未処理`);
+        if (details.length > 0) {
+          statusText += `（${details.join('、')}）`;
+        }
+        
+        setStatus({ 
+          type: 'error', 
+          text: statusText
+        });
+      } else if (failCount === 0) {
+        setStatus({ 
+          type: 'success', 
+          text: `全 ${successCount} 件のコレクションをインポートしました。` 
+        });
+      } else if (successCount === 0) {
+        setStatus({ 
+          type: 'error', 
+          text: `全 ${failCount} 件のインポートに失敗しました。` 
+        });
+      } else {
+        setStatus({ 
+          type: 'info', 
+          text: `${successCount} 件成功、${failCount} 件失敗しました。` 
+        });
+      }
+      
+      window.setTimeout(() => setStatus(null), 6000);
+      
+    } catch (err) {
+      clearImportTimeout();
+      setIsLoading(false);
+      importRunIdRef.current = null; // セッション終了
+      setStatus({ type: 'error', text: err instanceof Error ? err.message : 'インポートに失敗しました。' });
+    }
+  };
+
+  // 有効なペアの数を計算
+  const enabledPairsCount = collectionDbPairs.filter(p => 
+    p.enabled && p.collectionName.trim() && p.databaseId.trim()
+  ).length;
 
   return (
     <form onSubmit={handleSubmit} className="p-4 space-y-4">
@@ -300,22 +477,6 @@ const ImportTab = () => {
           />
             <small className="text-xs mt-1 block">※Notion IntegrationsからAPIキーを取得してください</small>
         </div>
-
-          <div>
-            <label className="floating-label">
-              <span>データベースID *</span>
-          </label>
-          <input
-            type="text"
-              className="input input-sm input-bordered w-full"
-              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-            value={databaseId}
-            onChange={(e) => setDatabaseId(e.target.value)}
-            onBlur={saveFormData}
-              required
-            />
-            <small className="text-xs mt-1 block">※NotionデータベースのURLからIDをコピーしてください</small>
-          </div>
 
           <div>
             <label className="floating-label">
@@ -353,94 +514,74 @@ const ImportTab = () => {
       </section>
 
       <section>
-        <h2 className="mb-2 text-sm font-semibold">Figma設定</h2>
-        <div className="space-y-4">
-          {collectionMode === 'new' ? (
-            <div>
-              <label className="label text-xs mb-2">
-                <span>コレクション名</span>
-              </label>
+        <h2 className="mb-2 text-sm font-semibold">同期ペア設定</h2>
+        <small className="text-xs text-base-content/70 block mb-3">
+          FigmaコレクションとNotionデータベースIDのペアを登録してください。
+          <span className="text-primary ml-1">⋮⋮をドラッグして順序を変更できます。</span>
+        </small>
+        
+        {/* ペアリスト（ドラッグ＆ドロップ対応） */}
+        <SyncPairList
+          pairs={collectionDbPairs}
+          collections={collections}
+          onPairsChange={setCollectionDbPairs}
+          onSave={saveFormData}
+        />
+        
+        {/* 追加ボタンと全選択 */}
+        <div className="flex justify-between items-center mt-3">
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            onClick={addPair}
+          >
+            + ペアを追加
+          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs"
+              onClick={() => toggleAllPairs(true)}
+            >
+              全選択
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-xs"
+              onClick={() => toggleAllPairs(false)}
+            >
+              全解除
+            </button>
+          </div>
+        </div>
+        
+        {/* オプション */}
+        <div className="mt-4 space-y-2">
+          <div className="form-control">
+            <label className="label cursor-pointer justify-start gap-2">
               <input
-                type="text"
-                className="input input-bordered input-sm w-full"
-                placeholder="Design Tokens"
-                value={collectionName}
-                onChange={(e) => setCollectionName(e.target.value)}
-                onBlur={saveFormData}
+                type="checkbox"
+                className="checkbox checkbox-primary checkbox-xs"
+                checked={overwriteExisting}
+                onChange={(e) => { setOverwriteExisting(e.target.checked); saveFormData(); }}
               />
-            </div>
-          ) : (
-            <div>
-              <label className="label text-xs mb-2">
-                <span>コレクションを選択</span>
-              </label>
-              <select
-                className="select select-sm w-full"
-                value={collectionName}
-                onChange={(e) => { setCollectionName(e.target.value); saveFormData(); }}
-              >
-                <option value="">コレクションを選択</option>
-                {collections.map((col) => (
-                  <option key={col.name} value={col.name}>{col.name}</option>
-                ))}
-              </select>
-      </div>
-          )}
-
-          <div className="grid gap-2 grid-cols-2">
-            <label className="label text-xs">
-              <input
-                type="radio"
-                name="collectionMode"
-                value="new"
-                className="radio radio-primary radio-xs"
-                checked={collectionMode === 'new'}
-                onChange={(e) => { if (e.target.checked) { setCollectionMode('new'); saveFormData(); } }}
-              />
-              <span>新規コレクションを作成</span>
-            </label>
-            <label className="label text-xs">
-              <input
-                type="radio"
-                name="collectionMode"
-                value="existing"
-                className="radio radio-primary radio-xs"
-                checked={collectionMode === 'existing'}
-                onChange={(e) => { if (e.target.checked) { setCollectionMode('existing'); saveFormData(); } }}
-              />
-              <span>既存のコレクションを使用</span>
+              <span className="text-xs">既存のVariableを上書き</span>
             </label>
           </div>
-
-          {collectionMode === 'existing' && (
-            <>
-              <div className="form-control">
-                <label className="label">
-                <input
-                  type="checkbox"
-                    className="checkbox checkbox-primary checkbox-xs"
-                  checked={overwriteExisting}
-                    onChange={(e) => { setOverwriteExisting(e.target.checked); saveFormData(); }}
-                />
-                  <span className="text-xs">既存のVariableを上書き</span>
-              </label>
-            </div>
-            
-              <div className="form-control">
-                <label className="label">
-                <input
-                  type="checkbox"
-                    className="checkbox checkbox-primary checkbox-xs"
-                  checked={deleteRemovedVariables}
-                    onChange={(e) => { setDeleteRemovedVariables(e.target.checked); saveFormData(); }}
-                />
-                  <span className="text-xs">Notionから削除された変数をFigmaからも削除</span>
-              </label>
-                <small className="text-xs text-warning ml-6">⚠️ この変数を参照しているコンポーネントの参照も解除されます</small>
-            </div>
-            </>
-          )}
-      </div>
+          
+          <div className="form-control">
+            <label className="label cursor-pointer justify-start gap-2">
+              <input
+                type="checkbox"
+                className="checkbox checkbox-primary checkbox-xs"
+                checked={deleteRemovedVariables}
+                onChange={(e) => { setDeleteRemovedVariables(e.target.checked); saveFormData(); }}
+              />
+              <span className="text-xs">Notionから削除された変数をFigmaからも削除</span>
+            </label>
+            <small className="text-xs text-warning ml-6">⚠️ この変数を参照しているコンポーネントの参照も解除されます</small>
+          </div>
+        </div>
       </section>
 
       <section>
@@ -451,16 +592,23 @@ const ImportTab = () => {
         />
       </section>
 
-      <button type="submit" className="btn btn-primary w-full" disabled={isLoading}>
+      <button type="submit" className="btn btn-primary w-full" disabled={isLoading || enabledPairsCount === 0}>
         {isLoading ? (
           <>
             <span className="loading loading-spinner"></span>
             インポート中...
           </>
         ) : (
-          'Notionからインポート'
+          `Notionからインポート${enabledPairsCount > 0 ? ` (${enabledPairsCount}件)` : ''}`
         )}
-        </button>
+      </button>
+      
+      {enabledPairsCount === 0 && !isLoading && (
+        <p className="text-xs text-warning text-center">
+          インポート対象のペアを選択してください
+        </p>
+      )}
+      
       {/* toast notifications */}
       {status && (
         <div className="toast toast-end">

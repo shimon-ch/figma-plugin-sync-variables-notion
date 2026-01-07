@@ -75,6 +75,12 @@ npm run lint
 
 # 型チェック
 npm run type-check
+
+# テスト実行
+npm run test
+
+# テスト（ウォッチモード）
+npm run test:watch
 ```
 
 ## 変更履歴

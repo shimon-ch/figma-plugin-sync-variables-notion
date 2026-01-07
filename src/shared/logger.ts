@@ -1,7 +1,8 @@
 // シンプルなロガー実装
 const isDevelopment = typeof process !== 'undefined' 
   ? process.env.NODE_ENV === 'development'
-  : import.meta.env?.MODE === 'development';
+  // @ts-expect-error - Vite import.meta.env
+  : (import.meta.env?.MODE === 'development');
 
 /**
  * 機密情報をマスクする
