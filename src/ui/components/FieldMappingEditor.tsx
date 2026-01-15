@@ -6,7 +6,9 @@ interface FieldMappingEditorProps {
 }
 
 const FieldMappingEditor = ({ mappings, onChange }: FieldMappingEditorProps) => {
-  const availableProperties = ['name', 'value', 'type', 'description', 'group'];
+  // 利用可能なFigma Variableプロパティ
+  // unit: descriptionに結合される補足情報（例: px, rem, %）
+  const availableProperties = ['name', 'value', 'type', 'description', 'group', 'unit'];
 
   const updateMapping = (index: number, field: keyof FieldMapping, value: string) => {
     const newMappings = [...mappings];

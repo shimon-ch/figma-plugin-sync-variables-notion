@@ -165,6 +165,7 @@ const SyncPairList = ({
             className="checkbox checkbox-primary checkbox-sm mt-2"
             checked={pair.enabled}
             onChange={(e) => updatePair(pair.id, { enabled: e.target.checked })}
+            onClick={(e) => e.stopPropagation()}
           />
 
           <div className="flex-1 space-y-2 min-w-0">

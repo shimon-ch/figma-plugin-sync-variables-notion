@@ -105,7 +105,7 @@ export interface ImportSettings {
 // フィールドマッピング
 export interface FieldMapping {
   notionField: string;
-  variableProperty: 'name' | 'value' | 'type' | 'description' | 'group';
+  variableProperty: 'name' | 'value' | 'type' | 'description' | 'group' | 'unit';
 }
 
 // 進捗情報の型定義
@@ -139,4 +139,5 @@ export interface SavedFormData {
   include_description?: boolean;
   preserve_hierarchy?: boolean;
   collection_db_pairs?: CollectionDbPair[];  // コレクション+DBIDペアのリスト
+  field_mappings?: FieldMapping[];  // フィールドマッピング設定
 }

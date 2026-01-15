@@ -15,6 +15,54 @@ interface Collection {
 // デフォルトのタイムアウト（変数数不明時）
 const DEFAULT_TIMEOUT_MS = 60000; // 1分
 
+// 有効なvariablePropertyの値
+const VALID_VARIABLE_PROPERTIES: FieldMapping['variableProperty'][] = [
+  'name', 'value', 'type', 'group', 'description', 'unit'
+];
+
+/**
+ * フィールドマッピングを正規化・検証する
+ * 
+ * 古いバージョンで保存されたデータや破損したデータから
+ * 無効なマッピングをフィルタリングする
+ * 
+ * @param mappings - 正規化対象のマッピング配列
+ * @returns 有効なマッピングのみを含む配列
+ */
+const normalizeFieldMappings = (
+  mappings: FieldMapping[]
+): FieldMapping[] => {
+  return mappings.filter(m => 
+    m.notionField && 
+    VALID_VARIABLE_PROPERTIES.includes(m.variableProperty)
+  );
+};
+
+/**
+ * CollectionDbPairsのIDを正規化する
+ * 
+ * 以下のケースでID重複/欠損が発生する可能性がある:
+ * - 古いバージョンで保存されたデータ（IDフィールドが存在しない）
+ * - コピー&ペーストや手動編集により同一IDが重複
+ * - ストレージからの復元時にデータ破損
+ * 
+ * @param pairs - 正規化対象のペア配列
+ * @returns IDが一意に設定されたペア配列
+ */
+const normalizeCollectionDbPairs = (
+  pairs: CollectionDbPair[]
+): CollectionDbPair[] => {
+  const seenIds = new Set<string>();
+  return pairs.map((pair) => {
+    let id = pair.id;
+    if (!id || seenIds.has(id)) {
+      id = generateUUID();
+    }
+    seenIds.add(id);
+    return { ...pair, id };
+  });
+};
+
 const ImportTab = () => {
   const [apiKey, setApiKey] = useState('');
   const [proxyUrl, setProxyUrl] = useState('');
@@ -71,8 +119,19 @@ const ImportTab = () => {
     if (data.notion_proxy_token) setProxyToken(data.notion_proxy_token);
     // コレクション+DBIDペアの復元
     if (data.collection_db_pairs && data.collection_db_pairs.length > 0) {
-      setCollectionDbPairs(data.collection_db_pairs);
+      setCollectionDbPairs(normalizeCollectionDbPairs(data.collection_db_pairs));
     }
+    // フィールドマッピングの復元（無効なマッピングをフィルタリング）
+    if (data.field_mappings && data.field_mappings.length > 0) {
+      const validMappings = normalizeFieldMappings(data.field_mappings);
+      if (validMappings.length > 0) {
+        setMappings(validMappings);
+      }
+    }
+  }, []);
+
+  const handlePairsChange = useCallback((pairs: CollectionDbPair[]) => {
+    setCollectionDbPairs(normalizeCollectionDbPairs(pairs));
   }, []);
 
   // 完了処理の共通ハンドラー（SUCCESS, ERROR, OPERATION_STATUS用）
@@ -162,6 +221,7 @@ const ImportTab = () => {
       overwrite_existing: overwriteExisting,
       delete_removed_variables: deleteRemovedVariables,
       collection_db_pairs: collectionDbPairs,
+      field_mappings: mappings,  // フィールドマッピングを保存
     };
     
     // 空でない値のみ追加
@@ -175,7 +235,7 @@ const ImportTab = () => {
         data: dataToSave
       }
     }, '*');
-  }, [apiKey, overwriteExisting, deleteRemovedVariables, proxyUrl, proxyToken, collectionDbPairs]);
+  }, [apiKey, overwriteExisting, deleteRemovedVariables, proxyUrl, proxyToken, collectionDbPairs, mappings]);
 
   // 各入力フィールドの変更時に自動保存
   useEffect(() => {
@@ -222,7 +282,7 @@ const ImportTab = () => {
       }, proxyToken);
       
       const raw = notionResponse?.results || [];
-      const variables = await transformNotionResponse(raw, apiKey, proxyUrl, proxyToken, fetchNotionPage);
+      const variables = await transformNotionResponse(raw, apiKey, proxyUrl, proxyToken, fetchNotionPage, mappings);
       
       if (!Array.isArray(variables) || variables.length === 0) {
         // データが空の場合は中断せず続行（データがないだけなので）
@@ -524,7 +584,7 @@ const ImportTab = () => {
         <SyncPairList
           pairs={collectionDbPairs}
           collections={collections}
-          onPairsChange={setCollectionDbPairs}
+          onPairsChange={handlePairsChange}
           onSave={saveFormData}
         />
         
