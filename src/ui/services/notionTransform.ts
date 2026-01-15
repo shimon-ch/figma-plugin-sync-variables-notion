@@ -259,7 +259,7 @@ export async function transformNotionResponse(
   const typeKey = getNotionFieldName(mappings, 'type', 'Type');
   const groupKey = getNotionFieldName(mappings, 'group', 'Group');
   const descKey = getNotionFieldName(mappings, 'description', 'Description');
-  const unitKey = getNotionFieldName(mappings, 'unit', ''); // unitは空文字がデフォルト（使用しない）
+  const unitKey = getNotionFieldName(mappings, 'unit', ''); // unit はマッピング未設定時は無効にするためデフォルトを空文字にしている（空文字は falsy なので、後続の if (unitKey) チェックで unit フィールドを一切参照しない）
 
   // relationページのキャッシュ
   const pageCache = new Map<string, any>();
