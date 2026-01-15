@@ -2,8 +2,21 @@
  * Notionデータの変換ユーティリティ
  */
 
-import { NotionVariable } from '@/shared/types';
+import { NotionVariable, FieldMapping } from '@/shared/types';
 import { logger } from '@/shared/logger';
+
+/**
+ * マッピング設定からNotionフィールド名を取得するヘルパー
+ */
+export const getNotionFieldName = (
+  mappings: FieldMapping[] | undefined,
+  variableProperty: FieldMapping['variableProperty'],
+  defaultValue: string
+): string => {
+  if (!mappings || mappings.length === 0) return defaultValue;
+  const mapping = mappings.find(m => m.variableProperty === variableProperty);
+  return mapping?.notionField || defaultValue;
+};
 
 /**
  * HEX変換用ヘルパー
@@ -236,14 +249,17 @@ export async function transformNotionResponse(
   apiKey: string,
   proxyUrl: string,
   proxyToken: string | undefined,
-  fetchNotionPage: (apiKey: string, pageId: string, proxyUrl: string, proxyToken?: string) => Promise<any>
+  fetchNotionPage: (apiKey: string, pageId: string, proxyUrl: string, proxyToken?: string) => Promise<any>,
+  mappings?: FieldMapping[]
 ): Promise<NotionVariable[]> {
-  const nameKey = 'Name';
-  const valuePrimaryKey = 'ValueRollup';
-  const valueFallbackKey = 'Value';
-  const typeKey = 'Type';
-  const groupKey = 'Group';
-  const descKey = 'Description';
+  // マッピングからNotionフィールド名を取得（デフォルト値付き）
+  const nameKey = getNotionFieldName(mappings, 'name', 'Name');
+  const valuePrimaryKey = 'ValueRollup'; // ロールアップは固定
+  const valueFallbackKey = getNotionFieldName(mappings, 'value', 'Value');
+  const typeKey = getNotionFieldName(mappings, 'type', 'Type');
+  const groupKey = getNotionFieldName(mappings, 'group', 'Group');
+  const descKey = getNotionFieldName(mappings, 'description', 'Description');
+  const unitKey = getNotionFieldName(mappings, 'unit', ''); // unitは空文字がデフォルト（使用しない）
 
   // relationページのキャッシュ
   const pageCache = new Map<string, any>();
@@ -349,9 +365,20 @@ export async function transformNotionResponse(
       
       const type = String(extractFromProperty(props, typeKey) || '').toUpperCase();
       const group = sanitizePath(extractFromProperty(props, groupKey) || page?.group || '');
-      const description = extractFromProperty(props, descKey) || page?.description || '';
       
-      logger.log('[notionTransform] resolved token', { name, group, type, isAlias, value });
+      // descriptionとunitの結合処理
+      let description = extractFromProperty(props, descKey) || page?.description || '';
+      if (unitKey) {
+        const unit = extractFromProperty(props, unitKey) || '';
+        if (unit) {
+          // unitがある場合、descriptionに結合
+          description = description 
+            ? `${description} [${unit}]` 
+            : `[${unit}]`;
+        }
+      }
+      
+      logger.log('[notionTransform] resolved token', { name, group, type, isAlias, value, description });
       
       const item: NotionVariable = {
         id: page?.id || crypto.randomUUID(),

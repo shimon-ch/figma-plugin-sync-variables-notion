@@ -24,7 +24,8 @@ const STORAGE_KEYS = {
   COLLECTION_ID: 'collection_id',
   INCLUDE_DESC: 'include_description',
   PRESERVE_HIERARCHY: 'preserve_hierarchy',
-  COLLECTION_DB_PAIRS: 'collection_db_pairs'  // JSONで保存
+  COLLECTION_DB_PAIRS: 'collection_db_pairs',  // JSONで保存
+  FIELD_MAPPINGS: 'field_mappings'  // JSONで保存
 };
 
 // 保存関数
@@ -154,6 +155,18 @@ async function loadAllData(): Promise<any> {
     }
   }
   
+  // フィールドマッピングの読み込み（JSON形式）
+  const fieldMappings = await loadValue(STORAGE_KEYS.FIELD_MAPPINGS);
+  if (fieldMappings) {
+    try {
+      data.field_mappings = JSON.parse(fieldMappings);
+      logger.log(`📖 Loaded ${data.field_mappings.length} field mappings`);
+    } catch (parseError) {
+      logger.error('❌ Failed to parse field_mappings:', parseError);
+      data.field_mappings = [];
+    }
+  }
+  
   return data;
 }
 
@@ -179,6 +192,17 @@ async function saveAllData(data: any): Promise<void> {
       logger.log(`💾 Saved ${data.collection_db_pairs.length} collection-db pairs`);
     } catch (saveError) {
       logger.error('❌ Failed to save collection_db_pairs:', saveError);
+    }
+  }
+  
+  // フィールドマッピングの保存（JSON形式）
+  if (data.field_mappings !== undefined) {
+    try {
+      const mappingsJson = JSON.stringify(data.field_mappings);
+      await figma.clientStorage.setAsync(STORAGE_KEYS.FIELD_MAPPINGS, mappingsJson);
+      logger.log(`💾 Saved ${data.field_mappings.length} field mappings`);
+    } catch (saveError) {
+      logger.error('❌ Failed to save field_mappings:', saveError);
     }
   }
 }
