@@ -284,44 +284,23 @@ export async function updateVariable(
     logger.log(`  - No existing variable found, will create new`);
   }
   
-  // 既存のVariableがない場合は作成
-  if (!figmaVariable) {
-    figmaVariable = figma.variables.createVariable(
-      variableName,
-      collection,
-      figmaType
-    );
-    logger.log(`  - Created new variable with type: ${figmaType}`);
-  }
-  
-  // 型が異なる場合は再作成が必要
-  if (figmaVariable.resolvedType !== figmaType) {
-    logger.log(`  - Type mismatch! ${figmaVariable.resolvedType} !== ${figmaType}`);
-    logger.log(`  - Removing old variable and creating new one`);
-    // 古いVariableを削除
-    figmaVariable.remove();
-    // 新しい型で作成
-    figmaVariable = figma.variables.createVariable(
-      variableName,
-      collection,
-      figmaType
-    );
-  }
-  
   // 値を設定
   const modeId = collection.modes[0].modeId;
   let valueToSet: VariableValue;
   
-  // Variable参照のチェック（{変数名}形式）
+  // Variable参照のチェック（{変数名}形式）- 変数作成前に判定
   const isAliasWithFallback = typeof variable.value === 'string' && variable.value.includes('||');
   const isVariableReference = typeof variable.value === 'string' && 
                               variable.value.startsWith('{') && 
                               variable.value.endsWith('}') && !isAliasWithFallback;
   
   if (isVariableReference || isAliasWithFallback) {
-    // Variable参照の場合
+    // Variable参照の場合 - 参照先の型を使用して変数を作成
     const raw = String(variable.value);
-    const [refPart, fbPart] = isAliasWithFallback ? raw.split('||') : [raw, undefined];
+    // split数を2に制限し、空白を除去（フォールバック値に||が含まれるケースに対応）
+    const [refPart, fbPart] = isAliasWithFallback
+      ? raw.split('||', 2).map(s => s.trim())
+      : [raw.trim(), undefined];
     const referenceName = refPart.startsWith('{') && refPart.endsWith('}') ? refPart.slice(1, -1) : refPart;
     logger.log(`Setting variable reference: ${variableName} -> ${referenceName}`);
     
@@ -329,24 +308,90 @@ export async function updateVariable(
     const referenceVariable = await findVariableByName(referenceName, allVariables);
     
     if (referenceVariable) {
+      const targetType = referenceVariable.resolvedType;
+      logger.log(`Found reference variable: ${referenceName} (ID: ${referenceVariable.id}, Type: ${targetType})`);
+      
+      // 参照先の型を使用して変数を作成/再作成
+      if (!figmaVariable) {
+        figmaVariable = figma.variables.createVariable(variableName, collection, targetType);
+        logger.log(`  - Created new variable with reference type: ${targetType}`);
+      } else if (figmaVariable.resolvedType !== targetType) {
+        logger.log(`  - Type mismatch with reference! ${figmaVariable.resolvedType} !== ${targetType}`);
+        logger.log(`  - Removing old variable and creating new one with reference type`);
+        figmaVariable.remove();
+        figmaVariable = figma.variables.createVariable(variableName, collection, targetType);
+      }
+      
       // Variable Aliasとして設定
       valueToSet = {
         type: 'VARIABLE_ALIAS',
         id: referenceVariable.id
       } as VariableAlias;
-      logger.log(`Found reference variable: ${referenceName} (ID: ${referenceVariable.id})`);
     } else {
+      // 参照先が見つからない場合
       if (fbPart) {
         logger.warn(`Reference not found: ${referenceName}, using fallback value`);
+        // フォールバック値から型を自動判定
+        const fallbackType = detectVariableType(fbPart);
+        const fallbackFigmaType = convertToFigmaVariableType(fallbackType);
+        
+        if (!figmaVariable) {
+          figmaVariable = figma.variables.createVariable(variableName, collection, fallbackFigmaType);
+          logger.log(`  - Created new variable with fallback type: ${fallbackFigmaType}`);
+        } else if (figmaVariable.resolvedType !== fallbackFigmaType) {
+          figmaVariable.remove();
+          figmaVariable = figma.variables.createVariable(variableName, collection, fallbackFigmaType);
+        }
+        
         // フォールバック値を型に応じて適切にパース
-        valueToSet = parseFallbackValue(fbPart, variable.type);
+        valueToSet = parseFallbackValue(fbPart, fallbackType);
       } else {
         logger.warn(`Reference variable not found: ${referenceName}, using direct value instead`);
+        // 参照先もフォールバックもない場合:
+        // - Notion側のtypeがあればそれを優先
+        // - なければvalueから型を自動判定
+        const inferredType = variable.type || detectVariableType(variable.value);
+        const inferredFigmaType = convertToFigmaVariableType(inferredType);
+        
+        // 既存の変数がない場合は推論した型で作成
+        if (!figmaVariable) {
+          figmaVariable = figma.variables.createVariable(variableName, collection, inferredFigmaType);
+          logger.log(`  - Created new variable with inferred type: ${inferredFigmaType}`);
+        } else if (figmaVariable.resolvedType !== inferredFigmaType) {
+          figmaVariable.remove();
+          figmaVariable = figma.variables.createVariable(variableName, collection, inferredFigmaType);
+        }
+        
         valueToSet = parseVariableValue(variable);
       }
     }
   } else {
-    // 通常の値の場合
+    // 通常の値の場合（非Alias）
+    // 既存のVariableがない場合は作成
+    if (!figmaVariable) {
+      figmaVariable = figma.variables.createVariable(
+        variableName,
+        collection,
+        figmaType
+      );
+      logger.log(`  - Created new variable with type: ${figmaType}`);
+    }
+    
+    // 型が異なる場合は再作成が必要
+    if (figmaVariable.resolvedType !== figmaType) {
+      logger.log(`  - Type mismatch! ${figmaVariable.resolvedType} !== ${figmaType}`);
+      logger.log(`  - Removing old variable and creating new one`);
+      // 古いVariableを削除
+      figmaVariable.remove();
+      // 新しい型で作成
+      figmaVariable = figma.variables.createVariable(
+        variableName,
+        collection,
+        figmaType
+      );
+    }
+    
+    // 通常の値を設定
     valueToSet = parseVariableValue(variable);
   }
   

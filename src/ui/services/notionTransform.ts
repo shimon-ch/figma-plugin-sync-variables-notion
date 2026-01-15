@@ -347,7 +347,10 @@ export async function transformNotionResponse(
         value = normalizeColor(value);
       }
       
-      const type = String(extractFromProperty(props, typeKey) || '').toUpperCase();
+      // Aliasの場合はType指定を無視（Figma側で参照先の型を継承）
+      const type = isAlias 
+        ? '' 
+        : String(extractFromProperty(props, typeKey) || '').toUpperCase();
       const group = sanitizePath(extractFromProperty(props, groupKey) || page?.group || '');
       const description = extractFromProperty(props, descKey) || page?.description || '';
       
