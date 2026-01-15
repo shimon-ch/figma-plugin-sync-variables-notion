@@ -163,7 +163,7 @@ async function loadAllData(): Promise<any> {
       logger.log(`📖 Loaded ${data.field_mappings.length} field mappings`);
     } catch (parseError) {
       logger.error('❌ Failed to parse field_mappings:', parseError);
-      data.field_mappings = [];
+      // パース失敗時はundefinedのまま（UIのデフォルト値を使用）
     }
   }
   

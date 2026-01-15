@@ -15,6 +15,40 @@ interface Collection {
 // デフォルトのタイムアウト（変数数不明時）
 const DEFAULT_TIMEOUT_MS = 60000; // 1分
 
+// 有効なvariablePropertyの値
+const VALID_VARIABLE_PROPERTIES: FieldMapping['variableProperty'][] = [
+  'name', 'value', 'type', 'group', 'description', 'unit'
+];
+
+/**
+ * フィールドマッピングを正規化・検証する
+ * 
+ * 古いバージョンで保存されたデータや破損したデータから
+ * 無効なマッピングをフィルタリングする
+ * 
+ * @param mappings - 正規化対象のマッピング配列
+ * @returns 有効なマッピングのみを含む配列
+ */
+const normalizeFieldMappings = (
+  mappings: FieldMapping[]
+): FieldMapping[] => {
+  return mappings.filter(m => 
+    m.notionField && 
+    VALID_VARIABLE_PROPERTIES.includes(m.variableProperty)
+  );
+};
+
+/**
+ * CollectionDbPairsのIDを正規化する
+ * 
+ * 以下のケースでID重複/欠損が発生する可能性がある:
+ * - 古いバージョンで保存されたデータ（IDフィールドが存在しない）
+ * - コピー&ペーストや手動編集により同一IDが重複
+ * - ストレージからの復元時にデータ破損
+ * 
+ * @param pairs - 正規化対象のペア配列
+ * @returns IDが一意に設定されたペア配列
+ */
 const normalizeCollectionDbPairs = (
   pairs: CollectionDbPair[]
 ): CollectionDbPair[] => {
@@ -87,9 +121,12 @@ const ImportTab = () => {
     if (data.collection_db_pairs && data.collection_db_pairs.length > 0) {
       setCollectionDbPairs(normalizeCollectionDbPairs(data.collection_db_pairs));
     }
-    // フィールドマッピングの復元
+    // フィールドマッピングの復元（無効なマッピングをフィルタリング）
     if (data.field_mappings && data.field_mappings.length > 0) {
-      setMappings(data.field_mappings);
+      const validMappings = normalizeFieldMappings(data.field_mappings);
+      if (validMappings.length > 0) {
+        setMappings(validMappings);
+      }
     }
   }, []);
 

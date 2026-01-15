@@ -8,7 +8,9 @@ import {
   pctToByte,
   hslToRgb,
   transformNotionResponse,
+  getNotionFieldName,
 } from '../notionTransform';
+import { FieldMapping } from '../../../shared/types';
 
 describe('notionTransform', () => {
   describe('toHex', () => {
@@ -252,6 +254,42 @@ describe('notionTransform', () => {
     });
   });
 
+  describe('getNotionFieldName', () => {
+    it('should return default value when mappings is undefined', () => {
+      expect(getNotionFieldName(undefined, 'name', 'Name')).toBe('Name');
+      expect(getNotionFieldName(undefined, 'value', 'Value')).toBe('Value');
+    });
+
+    it('should return default value when mappings is empty array', () => {
+      expect(getNotionFieldName([], 'name', 'Name')).toBe('Name');
+      expect(getNotionFieldName([], 'type', 'Type')).toBe('Type');
+    });
+
+    it('should return mapped field name when mapping exists', () => {
+      const mappings: FieldMapping[] = [
+        { notionField: 'CustomName', variableProperty: 'name' },
+        { notionField: 'CustomValue', variableProperty: 'value' },
+      ];
+      expect(getNotionFieldName(mappings, 'name', 'Name')).toBe('CustomName');
+      expect(getNotionFieldName(mappings, 'value', 'Value')).toBe('CustomValue');
+    });
+
+    it('should return default value when variableProperty not found in mappings', () => {
+      const mappings: FieldMapping[] = [
+        { notionField: 'CustomName', variableProperty: 'name' },
+      ];
+      expect(getNotionFieldName(mappings, 'type', 'Type')).toBe('Type');
+      expect(getNotionFieldName(mappings, 'description', 'Description')).toBe('Description');
+    });
+
+    it('should return default value when notionField is empty string', () => {
+      const mappings: FieldMapping[] = [
+        { notionField: '', variableProperty: 'name' },
+      ];
+      expect(getNotionFieldName(mappings, 'name', 'Name')).toBe('Name');
+    });
+  });
+
   describe('transformNotionResponse', () => {
     const mockFetchNotionPage = vi.fn();
 
@@ -360,6 +398,143 @@ describe('notionTransform', () => {
       );
 
       expect(result[0].value).toBe('#FF0000');
+    });
+
+    it('should append unit to description when both exist', async () => {
+      const mappings: FieldMapping[] = [
+        { notionField: 'Name', variableProperty: 'name' },
+        { notionField: 'Value', variableProperty: 'value' },
+        { notionField: 'Description', variableProperty: 'description' },
+        { notionField: 'Unit', variableProperty: 'unit' },
+      ];
+
+      const raw = [
+        {
+          id: 'page-1',
+          properties: {
+            Name: { type: 'title', title: [{ plain_text: 'Spacing Large' }] },
+            Value: { type: 'number', number: 24 },
+            Description: { type: 'rich_text', rich_text: [{ plain_text: 'Large spacing value' }] },
+            Unit: { type: 'rich_text', rich_text: [{ plain_text: 'px' }] },
+          },
+        },
+      ];
+
+      const result = await transformNotionResponse(
+        raw,
+        'api-key',
+        'https://proxy.test',
+        'token',
+        mockFetchNotionPage,
+        mappings
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0].description).toBe('Large spacing value [px]');
+    });
+
+    it('should use unit only when description is empty', async () => {
+      const mappings: FieldMapping[] = [
+        { notionField: 'Name', variableProperty: 'name' },
+        { notionField: 'Value', variableProperty: 'value' },
+        { notionField: 'Description', variableProperty: 'description' },
+        { notionField: 'Unit', variableProperty: 'unit' },
+      ];
+
+      const raw = [
+        {
+          id: 'page-1',
+          properties: {
+            Name: { type: 'title', title: [{ plain_text: 'Spacing Small' }] },
+            Value: { type: 'number', number: 8 },
+            Description: { type: 'rich_text', rich_text: [] },
+            Unit: { type: 'rich_text', rich_text: [{ plain_text: 'px' }] },
+          },
+        },
+      ];
+
+      const result = await transformNotionResponse(
+        raw,
+        'api-key',
+        'https://proxy.test',
+        'token',
+        mockFetchNotionPage,
+        mappings
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0].description).toBe('[px]');
+    });
+
+    it('should not append unit when unit mapping is not set', async () => {
+      const mappings: FieldMapping[] = [
+        { notionField: 'Name', variableProperty: 'name' },
+        { notionField: 'Value', variableProperty: 'value' },
+        { notionField: 'Description', variableProperty: 'description' },
+        // unit mapping not included
+      ];
+
+      const raw = [
+        {
+          id: 'page-1',
+          properties: {
+            Name: { type: 'title', title: [{ plain_text: 'Test' }] },
+            Value: { type: 'number', number: 16 },
+            Description: { type: 'rich_text', rich_text: [{ plain_text: 'Test description' }] },
+            Unit: { type: 'rich_text', rich_text: [{ plain_text: 'px' }] },
+          },
+        },
+      ];
+
+      const result = await transformNotionResponse(
+        raw,
+        'api-key',
+        'https://proxy.test',
+        'token',
+        mockFetchNotionPage,
+        mappings
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0].description).toBe('Test description');
+    });
+
+    it('should use custom field names from mappings', async () => {
+      const mappings: FieldMapping[] = [
+        { notionField: 'TokenName', variableProperty: 'name' },
+        { notionField: 'TokenValue', variableProperty: 'value' },
+        { notionField: 'TokenType', variableProperty: 'type' },
+        { notionField: 'Category', variableProperty: 'group' },
+      ];
+
+      const raw = [
+        {
+          id: 'page-1',
+          properties: {
+            TokenName: { type: 'title', title: [{ plain_text: 'Custom Token' }] },
+            TokenValue: { type: 'rich_text', rich_text: [{ plain_text: '#123456' }] },
+            TokenType: { type: 'select', select: { name: 'COLOR' } },
+            Category: { type: 'rich_text', rich_text: [{ plain_text: 'Brand' }] },
+          },
+        },
+      ];
+
+      const result = await transformNotionResponse(
+        raw,
+        'api-key',
+        'https://proxy.test',
+        'token',
+        mockFetchNotionPage,
+        mappings
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        name: 'Custom Token',
+        value: '#123456',
+        type: 'COLOR',
+        group: 'Brand',
+      });
     });
   });
 });
