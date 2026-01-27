@@ -1,8 +1,9 @@
 // Figmaプラグインのメインコントローラー
 import { handleImportFromNotion } from './handlers/syncHandler';
-import { MessageType } from '../shared/types';
+import { MessageType, ExportSettings } from '../shared/types';
 import { logger } from '../shared/logger';
 import { obfuscateApiKey, deobfuscateApiKey } from '../shared/security';
+import { exportToDesignTokens } from './utils/exportUtils';
 
 // UIを表示
 figma.showUI(__html__, {
@@ -275,6 +276,35 @@ figma.ui.onmessage = async (msg: any) => {
           type: MessageType.COLLECTIONS_DATA,
           data: { collections: collectionsData }
         });
+        break;
+      
+      case MessageType.EXPORT_VARIABLES:
+        try {
+          const exportSettings = msg.data as ExportSettings;
+          logger.log(`📤 Exporting variables for ${exportSettings.collectionIds.length} collections`);
+          
+          const result = await exportToDesignTokens(exportSettings.collectionIds);
+          
+          figma.ui.postMessage({
+            type: MessageType.EXPORT_RESULT,
+            data: {
+              success: true,
+              json: result.json,
+              tokenCount: result.tokenCount
+            }
+          });
+          
+          logger.log(`✅ Export completed: ${result.tokenCount} tokens`);
+        } catch (exportError) {
+          logger.error('❌ Export error:', exportError);
+          figma.ui.postMessage({
+            type: MessageType.EXPORT_RESULT,
+            data: {
+              success: false,
+              error: exportError instanceof Error ? exportError.message : 'エクスポートに失敗しました'
+            }
+          });
+        }
         break;
         
       case MessageType.CLOSE_PLUGIN:

@@ -8,6 +8,10 @@ export const MessageType = {
   GET_COLLECTIONS: 'GET_COLLECTIONS',
   COLLECTIONS_DATA: 'COLLECTIONS_DATA',
   
+  // Export関連
+  EXPORT_VARIABLES: 'EXPORT_VARIABLES',
+  EXPORT_RESULT: 'EXPORT_RESULT',
+  
   // UI関連
   RESIZE_UI: 'RESIZE_UI',
   CLOSE_PLUGIN: 'CLOSE_PLUGIN',
@@ -34,6 +38,10 @@ export enum MessageTypeEnum {
   // Figma Variables関連
   GET_COLLECTIONS = 'GET_COLLECTIONS',
   COLLECTIONS_DATA = 'COLLECTIONS_DATA',
+  
+  // Export関連
+  EXPORT_VARIABLES = 'EXPORT_VARIABLES',
+  EXPORT_RESULT = 'EXPORT_RESULT',
   
   // UI関連
   RESIZE_UI = 'RESIZE_UI',
@@ -140,4 +148,17 @@ export interface SavedFormData {
   preserve_hierarchy?: boolean;
   collection_db_pairs?: CollectionDbPair[];  // コレクション+DBIDペアのリスト
   field_mappings?: FieldMapping[];  // フィールドマッピング設定
+}
+
+// Export設定
+export interface ExportSettings {
+  collectionIds: string[];  // エクスポート対象のコレクションID
+}
+
+// Export結果
+export interface ExportResult {
+  success: boolean;
+  json?: string;          // W3C Design Tokens形式のJSON文字列
+  tokenCount?: number;    // エクスポートされたトークン数
+  error?: string;
 }
