@@ -175,8 +175,8 @@ const ExportTab = ({ collections: propCollections }: ExportTabProps) => {
             <p className="text-xs mt-1">Figma Variablesを作成してください</p>
           </div>
         ) : (
-          {/* コレクションリストの最大高さ（Figmaプラグインの限られたUI領域を考慮） */}
           <div className="space-y-2 max-h-64 overflow-y-auto">
+            {/* コレクションリストの最大高さ（Figmaプラグインの限られたUI領域を考慮） */}
             {collections.map(collection => (
               <label
                 key={collection.id}
