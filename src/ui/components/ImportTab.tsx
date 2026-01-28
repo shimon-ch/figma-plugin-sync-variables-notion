@@ -574,9 +574,26 @@ const ImportTab = ({ collections }: ImportTabProps) => {
       <section>
         <h2 className="mb-2 text-sm font-semibold">同期ペア設定</h2>
         <small className="text-xs text-base-content/70 block mb-3">
-          FigmaコレクションとNotionデータベースIDのペアを登録してください。
-          <span className="text-primary ml-1">⋮⋮をドラッグして順序を変更できます。</span>
+          FigmaコレクションとNotionデータベースのペアを設定します。
         </small>
+        
+        {/* 全選択/全解除ボタン（リスト上部） */}
+        <div className="flex justify-end gap-2 mb-2">
+          <button
+            type="button"
+            className="btn btn-outline btn-xs"
+            onClick={() => toggleAllPairs(true)}
+          >
+            全選択
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline btn-xs"
+            onClick={() => toggleAllPairs(false)}
+          >
+            全解除
+          </button>
+        </div>
         
         {/* ペアリスト（ドラッグ＆ドロップ対応） */}
         <SyncPairList
@@ -586,8 +603,8 @@ const ImportTab = ({ collections }: ImportTabProps) => {
           onSave={saveFormData}
         />
         
-        {/* 追加ボタンと全選択 */}
-        <div className="flex justify-between items-center mt-3">
+        {/* 追加ボタン（リスト下部） */}
+        <div className="mt-3">
           <button
             type="button"
             className="btn btn-outline btn-sm"
@@ -595,26 +612,12 @@ const ImportTab = ({ collections }: ImportTabProps) => {
           >
             + ペアを追加
           </button>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className="btn btn-ghost btn-xs"
-              onClick={() => toggleAllPairs(true)}
-            >
-              全選択
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost btn-xs"
-              onClick={() => toggleAllPairs(false)}
-            >
-              全解除
-            </button>
-          </div>
         </div>
-        
-        {/* オプション */}
-        <div className="mt-4 space-y-2">
+      </section>
+
+      <section>
+        <h2 className="mb-2 text-sm font-semibold">インポートオプション</h2>
+        <div className="space-y-2">
           <div className="form-control">
             <label className="label cursor-pointer justify-start gap-2">
               <input

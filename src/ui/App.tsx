@@ -40,17 +40,25 @@ const App = () => {
   return (
     <div className="min-h-screen bg-base-100 text-base-content">
       {/* タブナビゲーション */}
-      <div role="tablist" className="tabs tabs-bordered px-4 pt-2">
+      <div role="tablist" className="flex px-4 pt-4">
         <button
           role="tab"
-          className={`tab ${activeTab === 'import' ? 'tab-active' : ''}`}
+          className={`flex-1 py-3 text-sm text-center border-b-2 transition-colors ${
+            activeTab === 'import'
+              ? 'border-primary font-medium text-base-content'
+              : 'border-base-300 text-base-content/70 hover:text-base-content'
+          }`}
           onClick={() => setActiveTab('import')}
         >
           Import
         </button>
         <button
           role="tab"
-          className={`tab ${activeTab === 'export' ? 'tab-active' : ''}`}
+          className={`flex-1 py-3 text-sm text-center border-b-2 transition-colors ${
+            activeTab === 'export'
+              ? 'border-primary font-medium text-base-content'
+              : 'border-base-300 text-base-content/70 hover:text-base-content'
+          }`}
           onClick={() => setActiveTab('export')}
         >
           Export

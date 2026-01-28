@@ -149,100 +149,75 @@ const SyncPairList = ({
         textValue={pair.collectionName || 'Unnamed pair'}
         className="sync-pair-item group outline-none"
       >
-        <div className="flex items-start gap-2 p-3 bg-base-200 rounded-lg transition-all">
-          {/* ドラッグハンドル */}
-          <Button
-            slot="drag"
-            className="mt-2 p-1 rounded hover:bg-base-300 transition-colors outline-none focus:ring-2 focus:ring-primary/50"
-            aria-label="ドラッグして並べ替え"
-          >
-            <DragHandle />
-          </Button>
-
-          {/* チェックボックス */}
-          <input
-            type="checkbox"
-            className="checkbox checkbox-primary checkbox-sm mt-2"
-            checked={pair.enabled}
-            onChange={(e) => updatePair(pair.id, { enabled: e.target.checked })}
-            onClick={(e) => e.stopPropagation()}
-          />
-
-          <div className="flex-1 space-y-2 min-w-0">
-            {/* コレクション名 */}
+        <div className="flex flex-col gap-2 p-3 bg-base-200 rounded-lg transition-all">
+          {/* ヘッダー行: ドラッグハンドル + チェックボックス + 削除ボタン */}
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="text-xs text-base-content/60 w-24 shrink-0">
-                コレクション:
-              </span>
-              {pair.isManualInput ? (
-                <input
-                  type="text"
-                  className="input input-sm input-bordered flex-1 min-w-0"
-                  placeholder="コレクション名を入力"
-                  value={pair.collectionName}
-                  onChange={(e) =>
-                    updatePair(pair.id, { collectionName: e.target.value })
-                  }
-                  onBlur={onSave}
-                />
-              ) : (
-                <select
-                  className="select select-sm flex-1 min-w-0"
-                  value={pair.collectionName}
-                  onChange={(e) =>
-                    updatePair(pair.id, { collectionName: e.target.value })
-                  }
-                >
-                  <option value="">コレクションを選択</option>
-                  {collections.map((col) => (
-                    <option key={col.id} value={col.name}>
-                      {col.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <button
-                type="button"
-                className="btn btn-ghost btn-xs"
-                onClick={() =>
-                  updatePair(pair.id, {
-                    isManualInput: !pair.isManualInput,
-                    collectionName: '',
-                  })
-                }
-                title={pair.isManualInput ? 'ドロップダウンに切替' : '手入力に切替'}
+              <Button
+                slot="drag"
+                className="p-1 rounded hover:bg-base-300 transition-colors outline-none focus:ring-2 focus:ring-primary/50"
+                aria-label="ドラッグして並べ替え"
               >
-                {pair.isManualInput ? '📋' : '✏️'}
-              </button>
-            </div>
-
-            {/* データベースID */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-base-content/60 w-24 shrink-0">
-                DB ID:
-              </span>
+                <DragHandle />
+              </Button>
               <input
-                type="text"
-                className="input input-sm input-bordered flex-1 font-mono text-xs min-w-0"
-                placeholder="NotionデータベースID"
-                value={pair.databaseId}
-                onChange={(e) =>
-                  updatePair(pair.id, { databaseId: e.target.value })
-                }
-                onBlur={onSave}
+                type="checkbox"
+                className="checkbox checkbox-primary checkbox-sm"
+                checked={pair.enabled}
+                onChange={(e) => updatePair(pair.id, { enabled: e.target.checked })}
+                onClick={(e) => e.stopPropagation()}
               />
             </div>
+            <button
+              type="button"
+              className="text-base-content/60 hover:text-error text-lg leading-none"
+              onClick={() => removePair(pair.id)}
+              title="ペアを削除"
+            >
+              ×
+            </button>
           </div>
 
-          {/* 削除ボタン */}
-          <button
-            type="button"
-            className="btn btn-ghost btn-sm btn-square text-error opacity-60 hover:opacity-100"
-            onClick={() => removePair(pair.id)}
-            title="ペアを削除"
-          >
-            ×
-          </button>
+          {/* コレクション選択 */}
+          {pair.isManualInput ? (
+            <input
+              type="text"
+              className="input input-sm input-bordered w-full"
+              placeholder="コレクション名を入力"
+              value={pair.collectionName}
+              onChange={(e) =>
+                updatePair(pair.id, { collectionName: e.target.value })
+              }
+              onBlur={onSave}
+            />
+          ) : (
+            <select
+              className="select select-sm select-bordered w-full"
+              value={pair.collectionName}
+              onChange={(e) =>
+                updatePair(pair.id, { collectionName: e.target.value })
+              }
+            >
+              <option value="">コレクションを選択</option>
+              {collections.map((col) => (
+                <option key={col.id} value={col.name}>
+                  {col.name}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {/* データベースID */}
+          <input
+            type="text"
+            className="input input-sm input-bordered w-full font-mono text-xs"
+            placeholder="NotionデータベースID"
+            value={pair.databaseId}
+            onChange={(e) =>
+              updatePair(pair.id, { databaseId: e.target.value })
+            }
+            onBlur={onSave}
+          />
         </div>
       </GridListItem>
     ),

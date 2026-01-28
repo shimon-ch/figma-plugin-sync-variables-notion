@@ -48,7 +48,7 @@ const ExportTab = ({ collections: propCollections }: ExportTabProps) => {
         
         if (result.success && result.json) {
           // JSONファイルをダウンロード
-          downloadJson(result.json, 'design-tokens.tokens.json');
+          downloadJson(result.json, 'design-token.json');
           setStatus({ 
             type: 'success', 
             text: `${result.tokenCount || 0} 個のトークンをエクスポートしました。` 
@@ -154,14 +154,14 @@ const ExportTab = ({ collections: propCollections }: ExportTabProps) => {
           <div className="flex gap-2">
             <button
               type="button"
-              className="btn btn-ghost btn-xs"
+              className="btn btn-outline btn-xs"
               onClick={() => toggleAll(true)}
             >
               全選択
             </button>
             <button
               type="button"
-              className="btn btn-ghost btn-xs"
+              className="btn btn-outline btn-xs"
               onClick={() => toggleAll(false)}
             >
               全解除
