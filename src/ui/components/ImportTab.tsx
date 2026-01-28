@@ -209,6 +209,14 @@ const ImportTab = ({ collections }: ImportTabProps) => {
     };
     
     window.addEventListener('message', handleMessage);
+    
+    // マウント時にデータをリクエスト（INIT_DATAを逃した場合の保険）
+    if (!hasLoadedDataRef.current) {
+      parent.postMessage({
+        pluginMessage: { type: 'LOAD_DATA' }
+      }, '*');
+    }
+
     return () => window.removeEventListener('message', handleMessage);
   }, [applySavedData, handleOperationComplete, resetTimeout]);
 
