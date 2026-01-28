@@ -29,8 +29,8 @@ const ExportTab = ({ collections: propCollections }: ExportTabProps) => {
     return propCollections.map(c => ({
       id: c.id,
       name: c.name,
-      // 未登録の場合はデフォルトでtrue（全選択）
-      selected: selectionMap.has(c.id) ? selectionMap.get(c.id)! : true,
+      // 未登録の場合はデフォルトでfalse（未選択）
+      selected: selectionMap.has(c.id) ? selectionMap.get(c.id)! : false,
       variableCount: c.variableIds?.length || 0
     }));
   }, [propCollections, selectionMap]);
@@ -95,7 +95,7 @@ const ExportTab = ({ collections: propCollections }: ExportTabProps) => {
   const toggleCollection = useCallback((id: string) => {
     setSelectionMap(prev => {
       const newMap = new Map(prev);
-      const currentValue = newMap.has(id) ? newMap.get(id)! : true;
+      const currentValue = newMap.has(id) ? newMap.get(id)! : false;
       newMap.set(id, !currentValue);
       return newMap;
     });
@@ -175,6 +175,7 @@ const ExportTab = ({ collections: propCollections }: ExportTabProps) => {
             <p className="text-xs mt-1">Figma Variablesを作成してください</p>
           </div>
         ) : (
+          {/* コレクションリストの最大高さ（Figmaプラグインの限られたUI領域を考慮） */}
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {collections.map(collection => (
               <label

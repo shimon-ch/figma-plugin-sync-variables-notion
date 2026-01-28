@@ -80,11 +80,17 @@ async function buildVariablePathMap(
 }
 
 // パスセグメントを安全な形式に変換（スペースはアンダースコアに、特殊文字は削除）
+// W3C Design Tokens仕様（Draft）では、トークンは階層的な「パス」で識別され、
+// 一般にドット区切り（例: "color.background.default"）で表現されます。
+// ref: https://design-tokens.github.io/community-group/format/#tokens
+// - '.' はパスのセグメント区切りとして使用するため、1セグメント内では利用しない前提とし削除
+// - '$' は $value, $type など仕様で定義されるメタプロパティ名の接頭辞として予約されるため除外
+// - '{', '}' は JSON オブジェクトの構文文字であり、パースの曖昧さを避けるため除去
 function sanitizePathSegment(segment: string): string {
   return segment
     .trim()
     .replace(/\s+/g, '_')
-    .replace(/[{}.$]/g, ''); // W3C仕様で禁止されている文字を削除
+    .replace(/[{}.$]/g, '');
 }
 
 // 値をW3C形式に変換
@@ -101,9 +107,9 @@ function convertValueToW3C(
       if (referencePath) {
         return `{${referencePath}}`;
       }
-      // 参照先が見つからない場合は空文字列
+      // 参照先が見つからない場合は警告を出し、元のID文字列をそのまま返却する
       logger.warn(`Alias reference not found: ${aliasValue.id}`);
-      return '';
+      return aliasValue.id;
     }
   }
   
@@ -222,7 +228,12 @@ export async function exportToDesignTokens(
     setTokenAtPath(root, pathSegments, token);
     tokenCount++;
     
-    logger.log(`  Exported: ${pathSegments.join('.')} (${w3cType})`);
+    // パフォーマンス対策として、トークンごとのログ出力は上限を設ける
+    if (tokenCount <= 100) {
+      logger.log(`  Exported: ${pathSegments.join('.')} (${w3cType})`);
+    } else if (tokenCount === 101) {
+      logger.log('  ...他のトークンの詳細ログ出力は省略されました（件数が多いため）');
+    }
   }
   
   logger.log(`[exportToDesignTokens] Completed: ${tokenCount} tokens exported`);

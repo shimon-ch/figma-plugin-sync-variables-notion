@@ -173,6 +173,7 @@ const SyncPairList = ({
               className="text-base-content/60 hover:text-error text-lg leading-none"
               onClick={() => removePair(pair.id)}
               title="ペアを削除"
+              aria-label="ペアを削除"
             >
               ×
             </button>
