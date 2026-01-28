@@ -12,6 +12,10 @@ interface Collection {
   variableIds?: string[];
 }
 
+interface ImportTabProps {
+  collections: Collection[];
+}
+
 // デフォルトのタイムアウト（変数数不明時）
 const DEFAULT_TIMEOUT_MS = 60000; // 1分
 
@@ -63,7 +67,7 @@ const normalizeCollectionDbPairs = (
   });
 };
 
-const ImportTab = () => {
+const ImportTab = ({ collections }: ImportTabProps) => {
   const [apiKey, setApiKey] = useState('');
   const [proxyUrl, setProxyUrl] = useState('');
   const [proxyToken, setProxyToken] = useState('');
@@ -76,7 +80,6 @@ const ImportTab = () => {
     { notionField: 'Group', variableProperty: 'group' },
     { notionField: 'Description', variableProperty: 'description' }
   ]);
-  const [collections, setCollections] = useState<Collection[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const importTimeoutRef = useRef<number | null>(null);
@@ -156,19 +159,14 @@ const ImportTab = () => {
       
       // 初期化データ
       if (msg.type === 'INIT_DATA') {
-        if (msg.collections) {
-          setCollections(msg.collections || []);
-        }
+        // collectionsはApp.tsxで管理されるため、ここでは処理しない
         if (msg.savedData) {
           applySavedData(msg.savedData as SavedFormData);
         }
         hasLoadedDataRef.current = true;
       }
       
-      // コレクションデータ
-      if (msg.type === 'COLLECTIONS_DATA' && msg.data) {
-        setCollections(msg.data.collections || []);
-      }
+      // コレクションデータはApp.tsxで管理されるため、ここでは処理しない
       
       // 進捗通知（タイムアウトタイマーをリセット）
       if (msg.type === 'PROGRESS' && msg.data) {

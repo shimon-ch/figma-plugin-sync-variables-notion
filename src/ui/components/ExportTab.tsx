@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ExportResult } from '../../shared/types';
 
 interface Collection {
@@ -14,38 +14,32 @@ interface CollectionSelection {
   variableCount: number;
 }
 
-const ExportTab = () => {
-  const [collections, setCollections] = useState<CollectionSelection[]>([]);
+interface ExportTabProps {
+  collections: Collection[];
+}
+
+const ExportTab = ({ collections: propCollections }: ExportTabProps) => {
+  // 選択状態をIDでマップ管理（propsが変わっても選択状態を維持）
+  const [selectionMap, setSelectionMap] = useState<Map<string, boolean>>(new Map());
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
 
-  // コレクションデータを受信
+  // propsのコレクションと選択状態をマージ
+  const collections: CollectionSelection[] = useMemo(() => {
+    return propCollections.map(c => ({
+      id: c.id,
+      name: c.name,
+      // 未登録の場合はデフォルトでtrue（全選択）
+      selected: selectionMap.has(c.id) ? selectionMap.get(c.id)! : true,
+      variableCount: c.variableIds?.length || 0
+    }));
+  }, [propCollections, selectionMap]);
+
+  // メッセージハンドラ（エクスポート結果のみ処理）
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       const msg = event.data.pluginMessage;
       if (!msg) return;
-
-      // 初期化データ
-      if (msg.type === 'INIT_DATA' && msg.collections) {
-        const collectionData = (msg.collections as Collection[]).map(c => ({
-          id: c.id,
-          name: c.name,
-          selected: true, // デフォルトで全選択
-          variableCount: c.variableIds?.length || 0
-        }));
-        setCollections(collectionData);
-      }
-
-      // コレクションデータ更新
-      if (msg.type === 'COLLECTIONS_DATA' && msg.data?.collections) {
-        const collectionData = (msg.data.collections as Collection[]).map(c => ({
-          id: c.id,
-          name: c.name,
-          selected: true,
-          variableCount: c.variableIds?.length || 0
-        }));
-        setCollections(collectionData);
-      }
 
       // エクスポート結果
       if (msg.type === 'EXPORT_RESULT') {
@@ -99,15 +93,22 @@ const ExportTab = () => {
 
   // コレクション選択を切り替え
   const toggleCollection = useCallback((id: string) => {
-    setCollections(prev => prev.map(c => 
-      c.id === id ? { ...c, selected: !c.selected } : c
-    ));
+    setSelectionMap(prev => {
+      const newMap = new Map(prev);
+      const currentValue = newMap.has(id) ? newMap.get(id)! : true;
+      newMap.set(id, !currentValue);
+      return newMap;
+    });
   }, []);
 
   // 全選択/全解除
   const toggleAll = useCallback((selected: boolean) => {
-    setCollections(prev => prev.map(c => ({ ...c, selected })));
-  }, []);
+    setSelectionMap(prev => {
+      const newMap = new Map(prev);
+      propCollections.forEach(c => newMap.set(c.id, selected));
+      return newMap;
+    });
+  }, [propCollections]);
 
   // エクスポート実行
   const handleExport = useCallback(() => {
