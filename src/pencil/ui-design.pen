@@ -1,0 +1,1517 @@
+{
+  "version": "2.6",
+  "children": [
+    {
+      "type": "frame",
+      "id": "vgyUY",
+      "x": 100,
+      "y": 100,
+      "name": "Figma Plugin UI",
+      "width": 399,
+      "height": 997,
+      "fill": "$base-100",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "obEW1",
+          "name": "Tab Navigation",
+          "width": "fill_container",
+          "padding": [
+            16,
+            16,
+            0,
+            16
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "sEvEN",
+              "name": "Import Tab Button",
+              "width": "fill_container",
+              "stroke": {
+                "align": "inside",
+                "thickness": {
+                  "bottom": 2
+                },
+                "fill": "$primary"
+              },
+              "padding": [
+                12,
+                0
+              ],
+              "justifyContent": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "akobA",
+                  "name": "Import Label",
+                  "fill": "$base-content",
+                  "content": "Import",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "EaKme",
+              "name": "Export Tab Button",
+              "width": "fill_container",
+              "stroke": {
+                "align": "inside",
+                "thickness": {
+                  "bottom": 1
+                },
+                "fill": "$base-300"
+              },
+              "padding": [
+                12,
+                0
+              ],
+              "justifyContent": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "jPrK2",
+                  "name": "Export Label",
+                  "fill": "$base-content-70",
+                  "content": "Export",
+                  "fontFamily": "Inter",
+                  "fontSize": 14
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "TkgS0",
+          "name": "Content Area",
+          "width": 399,
+          "height": 940,
+          "layout": "vertical",
+          "gap": 16,
+          "padding": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "4tcA4",
+              "name": "Header",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Fh46i",
+                  "name": "Title",
+                  "fill": "$base-content",
+                  "content": "Sync Figma Variables from Notion",
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "t8Uvx",
+              "name": "Notion Settings",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 12,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "7tEVY",
+                  "name": "Section Title",
+                  "fill": "$base-content",
+                  "content": "Notion設定",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "Ug28v",
+                  "name": "API Key Field",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 4,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "hOnc0",
+                      "name": "Label",
+                      "fill": "$base-content",
+                      "content": "Notion APIキー *",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "AcSTU",
+                      "name": "Input",
+                      "width": "fill_container",
+                      "height": 32,
+                      "fill": "$base-100",
+                      "cornerRadius": 4,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$base-300"
+                      },
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Y3RCL",
+                          "name": "apiKeyPlaceholder",
+                          "fill": "$base-content-60",
+                          "content": "ntn_xxxxxxxxxxxxx",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "xl9EJ",
+                      "name": "Hint",
+                      "fill": "$base-content-70",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "※Notion IntegrationsからAPIキーを取得してください",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "JaNoL",
+                  "name": "Proxy URL Field",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 4,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "YKLjY",
+                      "name": "Label",
+                      "fill": "$base-content",
+                      "content": "プロキシURL（Cloudflare Workers / https必須）",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "DpTKU",
+                      "name": "Input",
+                      "width": "fill_container",
+                      "height": 32,
+                      "fill": "$base-100",
+                      "cornerRadius": 4,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$base-300"
+                      },
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Q3vUQ",
+                          "name": "proxyUrlPlaceholder",
+                          "fill": "$base-content-60",
+                          "content": "https://your-worker.your-subdomain.workers.dev",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "j3meW",
+                      "name": "Hint",
+                      "fill": "$base-content-70",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "※httpsのみ許可。URLはローカル保存され公開ビルドへは埋め込まれません。",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "f7gi8",
+                  "name": "Proxy Token Field",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 4,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "L44Yo",
+                      "name": "Label",
+                      "fill": "$base-content",
+                      "content": "プロキシトークン（X-Proxy-Token）",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "nYsb7",
+                      "name": "Input",
+                      "width": "fill_container",
+                      "height": 32,
+                      "fill": "$base-100",
+                      "cornerRadius": 4,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$base-300"
+                      },
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "dgqk2",
+                          "name": "proxyTokenPlaceholder",
+                          "fill": "$base-content-60",
+                          "content": "任意の共有シークレット",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "hcAmi",
+                      "name": "Hint",
+                      "fill": "$base-content-70",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "※Cloudflare Worker の環境変数 PROXY_TOKEN と一致させてください。",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "TqseQ",
+              "name": "Sync Pair Settings",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 8,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "97ACZ",
+                  "name": "Section Title",
+                  "fill": "$base-content",
+                  "content": "同期ペア設定",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "6kQcq",
+                  "name": "Description",
+                  "fill": "$base-content-70",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "FigmaコレクションとNotionデータベースのペアを設定します。",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "wq2qZ",
+                  "name": "Select Row",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "justifyContent": "end",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "Zghap",
+                      "name": "Select All Button",
+                      "height": 28,
+                      "cornerRadius": 6,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$base-300"
+                      },
+                      "padding": [
+                        6,
+                        12
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "ZU7yW",
+                          "name": "selectAllText",
+                          "fill": "$base-content",
+                          "content": "全選択",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "uQCov",
+                      "name": "Deselect All Button",
+                      "height": 28,
+                      "cornerRadius": 6,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$base-300"
+                      },
+                      "padding": [
+                        6,
+                        12
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "AYfln",
+                          "name": "deselectAllText",
+                          "fill": "$base-content",
+                          "content": "全解除",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "RC0DF",
+                  "name": "Sync Pair Item",
+                  "width": "fill_container",
+                  "fill": "$base-200",
+                  "cornerRadius": 8,
+                  "layout": "vertical",
+                  "gap": 8,
+                  "padding": 12,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "0KUgx",
+                      "name": "Header Row",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "FU0Su",
+                          "name": "Left Group",
+                          "gap": 8,
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "4YLIx",
+                              "name": "Drag Handle",
+                              "fill": "$base-content-60",
+                              "content": "⋮⋮",
+                              "fontFamily": "Inter",
+                              "fontSize": 14,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "frame",
+                              "id": "WXMDZ",
+                              "name": "Checkbox",
+                              "width": 16,
+                              "height": 16,
+                              "fill": "$primary",
+                              "cornerRadius": 3,
+                              "stroke": {
+                                "align": "inside",
+                                "thickness": 2,
+                                "fill": "$primary"
+                              },
+                              "justifyContent": "center",
+                              "alignItems": "center",
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "nVxGO",
+                                  "name": "checkmark",
+                                  "fill": "$base-100",
+                                  "content": "✓",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 11,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "3cCh1",
+                          "name": "Delete Button",
+                          "width": 20,
+                          "height": 20,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "MjSAS",
+                              "name": "deleteIcon",
+                              "fill": "$base-content-60",
+                              "content": "×",
+                              "fontFamily": "Inter",
+                              "fontSize": 16,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Su3Bh",
+                      "name": "Collection Select",
+                      "width": "fill_container",
+                      "height": 32,
+                      "fill": "$base-100",
+                      "cornerRadius": 6,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$base-300"
+                      },
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "RDG4m",
+                          "name": "collectionText",
+                          "fill": "$base-content",
+                          "content": "Primitives",
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon_font",
+                          "id": "4x6jr",
+                          "name": "selectIcon",
+                          "width": 14,
+                          "height": 14,
+                          "iconFontName": "chevron-down",
+                          "iconFontFamily": "lucide",
+                          "fill": "$base-content-60"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "VomrQ",
+                      "name": "DB Input",
+                      "width": "fill_container",
+                      "height": 32,
+                      "fill": "$base-100",
+                      "cornerRadius": 6,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$base-300"
+                      },
+                      "padding": [
+                        8,
+                        12
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "xQjty",
+                          "name": "dbPlaceholder",
+                          "fill": "$base-content-60",
+                          "content": "NotionデータベースID",
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "svuOD",
+                  "name": "Add Button Row",
+                  "width": "fill_container",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "WN6CW",
+                      "name": "Add Pair Button",
+                      "height": 32,
+                      "cornerRadius": 6,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$base-300"
+                      },
+                      "gap": 4,
+                      "padding": [
+                        8,
+                        16
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "2bb3k",
+                          "name": "addIcon",
+                          "width": 14,
+                          "height": 14,
+                          "iconFontName": "plus",
+                          "iconFontFamily": "lucide",
+                          "fill": "$base-content"
+                        },
+                        {
+                          "type": "text",
+                          "id": "a09wV",
+                          "name": "addText",
+                          "fill": "$base-content",
+                          "content": "ペアを追加",
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "0lYY3",
+              "name": "Options",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 8,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "6fIeH",
+                  "name": "Options Title",
+                  "fill": "$base-content",
+                  "content": "インポートオプション",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "NSX7Z",
+                  "name": "Overwrite Option",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "FU51k",
+                      "name": "Checkbox",
+                      "width": 14,
+                      "height": 14,
+                      "fill": "$primary",
+                      "cornerRadius": 3,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 2,
+                        "fill": "$primary"
+                      },
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "zpo32",
+                          "name": "overwriteCheck",
+                          "fill": "$base-100",
+                          "content": "✓",
+                          "fontFamily": "Inter",
+                          "fontSize": 10,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "8AeyB",
+                      "name": "overwriteLabel",
+                      "fill": "$base-content",
+                      "content": "既存のVariableを上書き",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "v9m6L",
+                  "name": "Delete Option",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "a9AqM",
+                      "name": "Checkbox",
+                      "width": 14,
+                      "height": 14,
+                      "cornerRadius": 3,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 2,
+                        "fill": "$base-300"
+                      }
+                    },
+                    {
+                      "type": "text",
+                      "id": "TMFfD",
+                      "name": "deleteLabel",
+                      "fill": "$base-content",
+                      "content": "Notionから削除された変数をFigmaからも削除",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "f5w7G",
+                  "name": "Warning Wrapper",
+                  "width": "fill_container",
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    22
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "8wVj8",
+                      "name": "Warning",
+                      "fill": "$warning",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "⚠️ この変数を参照しているコンポーネントの参照も解除されます",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "AfEME",
+              "name": "Field Mapping",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 12,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "YNGUV",
+                  "name": "Section Title",
+                  "fill": "$base-content",
+                  "content": "フィールドマッピング",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "kbSCB",
+                  "name": "Mapping Header",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "lb8u0",
+                      "name": "mappingLabel1",
+                      "fill": "$base-content",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Notionフィールド",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "zgq2h",
+                      "name": "mappingArrow",
+                      "fill": "$base-content",
+                      "content": "→",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "9qogJ",
+                      "name": "mappingLabel2",
+                      "fill": "$base-content",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Variableプロパティ",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "BqT0E",
+                      "name": "mappingSpace",
+                      "width": 24,
+                      "height": 16
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "HQ0Bx",
+                  "name": "Mapping Row",
+                  "width": "fill_container",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "DrdfR",
+                      "name": "Input",
+                      "width": "fill_container",
+                      "height": 28,
+                      "fill": "$base-100",
+                      "cornerRadius": 4,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$base-300"
+                      },
+                      "padding": [
+                        6,
+                        10
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "AhDC2",
+                          "name": "mappingText1",
+                          "fill": "$base-content",
+                          "content": "Name",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "jGIjk",
+                      "name": "mappingArrowIcon",
+                      "fill": "$base-content",
+                      "content": "→",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "wn6ry",
+                      "name": "Select",
+                      "width": "fill_container",
+                      "height": 28,
+                      "fill": "$base-100",
+                      "cornerRadius": 4,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$base-300"
+                      },
+                      "padding": [
+                        6,
+                        10
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "ydttb",
+                          "name": "mappingSelectText",
+                          "fill": "$base-content",
+                          "content": "name",
+                          "fontFamily": "Inter",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon_font",
+                          "id": "BWpvO",
+                          "name": "mappingSelectIcon",
+                          "width": 12,
+                          "height": 12,
+                          "iconFontName": "chevron-down",
+                          "iconFontFamily": "lucide",
+                          "fill": "$base-content-60"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "aGp1t",
+                      "name": "Delete Button",
+                      "width": 24,
+                      "height": 24,
+                      "cornerRadius": 4,
+                      "stroke": {
+                        "align": "inside",
+                        "thickness": 1,
+                        "fill": "$error"
+                      },
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "A1ouj",
+                          "name": "mappingDeleteIcon",
+                          "fill": "$error",
+                          "content": "×",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "63t2d",
+                  "name": "Add Mapping Button",
+                  "height": 32,
+                  "fill": "$base-content",
+                  "cornerRadius": 4,
+                  "gap": 6,
+                  "padding": [
+                    8,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "6xfcf",
+                      "name": "addMappingText",
+                      "fill": "$base-100",
+                      "content": "+ マッピングを追加",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "EuoX8",
+              "name": "Import Button",
+              "width": "fill_container",
+              "height": 40,
+              "fill": "$primary",
+              "cornerRadius": 8,
+              "gap": 8,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "65moo",
+                  "name": "importButtonText",
+                  "fill": "$base-100",
+                  "content": "Notionからインポート (2件)",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "8WHOA",
+      "x": 550,
+      "y": 100,
+      "name": "Figma Plugin UI - Export Tab",
+      "width": 400,
+      "height": 600,
+      "fill": "$base-100",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "TLGmO",
+          "name": "Tab Navigation",
+          "width": "fill_container",
+          "padding": [
+            16,
+            16,
+            0,
+            16
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "VlSvj",
+              "name": "Import Tab Button",
+              "width": "fill_container",
+              "stroke": {
+                "align": "inside",
+                "thickness": {
+                  "bottom": 1
+                },
+                "fill": "$base-300"
+              },
+              "padding": [
+                12,
+                0
+              ],
+              "justifyContent": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ys6TW",
+                  "name": "Import Label",
+                  "fill": "$base-content-70",
+                  "content": "Import",
+                  "fontFamily": "Inter",
+                  "fontSize": 14
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Li5I4",
+              "name": "Export Tab Button",
+              "width": "fill_container",
+              "stroke": {
+                "align": "inside",
+                "thickness": {
+                  "bottom": 2
+                },
+                "fill": "$primary"
+              },
+              "padding": [
+                12,
+                0
+              ],
+              "justifyContent": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "QLWNQ",
+                  "name": "Export Label",
+                  "fill": "$base-content",
+                  "content": "Export",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "yXWrl",
+          "name": "Content Area",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "bLFKa",
+              "name": "Header",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "EWkHL",
+                  "name": "Title",
+                  "fill": "$base-content",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "Export Figma Variables to Design Tokens",
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "text",
+                  "id": "oWYnI",
+                  "name": "Subtitle",
+                  "fill": "$base-content-70",
+                  "content": "W3C Design Tokens形式でエクスポートします",
+                  "fontFamily": "Inter",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "OFbVO",
+              "name": "Collection Section",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 12,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "i0Rhd",
+                  "name": "Section Header",
+                  "width": "fill_container",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "xWWAn",
+                      "name": "Title",
+                      "fill": "$base-content",
+                      "content": "コレクション選択",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "BxUrk",
+                      "name": "Buttons",
+                      "gap": 8,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "gCRze",
+                          "name": "collectionSelectAll",
+                          "fill": "$base-content-70",
+                          "content": "全選択",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "r6xP7",
+                          "name": "collectionDeselectAll",
+                          "fill": "$base-content-70",
+                          "content": "全解除",
+                          "fontFamily": "Inter",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "OBzg7",
+                  "name": "Collection List",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 8,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "D1enm",
+                      "name": "Collection Item",
+                      "width": "fill_container",
+                      "cornerRadius": 8,
+                      "gap": 12,
+                      "padding": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "0Tc6s",
+                          "name": "Checkbox",
+                          "width": 16,
+                          "height": 16,
+                          "fill": "$primary",
+                          "cornerRadius": 3,
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 2,
+                            "fill": "$primary"
+                          },
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "rzRSB",
+                              "name": "collectionCheck1",
+                              "fill": "$base-100",
+                              "content": "✓",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "DeUNe",
+                          "name": "Info",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 2,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "YQ895",
+                              "name": "collectionName1",
+                              "fill": "$base-content",
+                              "content": "Primitives",
+                              "fontFamily": "Inter",
+                              "fontSize": 14,
+                              "fontWeight": "500"
+                            },
+                            {
+                              "type": "text",
+                              "id": "nxHl0",
+                              "name": "collectionCount1",
+                              "fill": "$base-content-60",
+                              "content": "18 変数",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "JmTLd",
+                      "name": "Collection Item",
+                      "width": "fill_container",
+                      "cornerRadius": 8,
+                      "gap": 12,
+                      "padding": 8,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "pHuo1",
+                          "name": "Checkbox",
+                          "width": 16,
+                          "height": 16,
+                          "fill": "$primary",
+                          "cornerRadius": 3,
+                          "stroke": {
+                            "align": "inside",
+                            "thickness": 2,
+                            "fill": "$primary"
+                          },
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "fsnmf",
+                              "name": "collectionCheck2",
+                              "fill": "$base-100",
+                              "content": "✓",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "LNqPr",
+                          "name": "Info",
+                          "width": "fill_container",
+                          "layout": "vertical",
+                          "gap": 2,
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "4kk8Q",
+                              "name": "collectionName2",
+                              "fill": "$base-content",
+                              "content": "Semantic",
+                              "fontFamily": "Inter",
+                              "fontSize": 14,
+                              "fontWeight": "500"
+                            },
+                            {
+                              "type": "text",
+                              "id": "yokHq",
+                              "name": "collectionCount2",
+                              "fill": "$base-content-60",
+                              "content": "24 変数",
+                              "fontFamily": "Inter",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "I5ZgW",
+              "name": "Export Settings",
+              "width": "fill_container",
+              "fill": "$base-200",
+              "cornerRadius": 8,
+              "layout": "vertical",
+              "gap": 8,
+              "padding": 12,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "AWBo1",
+                  "name": "Title",
+                  "fill": "$base-content",
+                  "content": "エクスポート設定",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "EA6hx",
+                  "name": "Settings List",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 4,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "7jOwG",
+                      "name": "setting1",
+                      "fill": "$base-content-70",
+                      "content": "・形式: W3C Design Tokens (JSON)",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "0sCz9",
+                      "name": "setting2",
+                      "fill": "$base-content-70",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "・コレクション名がパスのプレフィックスになります",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "HZVN5",
+                      "name": "setting3",
+                      "fill": "$base-content-70",
+                      "content": "・エイリアス参照は維持されます",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "8GguD",
+              "name": "Export Button",
+              "width": "fill_container",
+              "height": 40,
+              "fill": "$primary",
+              "cornerRadius": 8,
+              "gap": 8,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ASUti",
+                  "name": "exportButtonText",
+                  "fill": "$base-100",
+                  "content": "エクスポート (2 コレクション / 42 変数)",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "base-100": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "base-200": {
+      "type": "color",
+      "value": "#F2F2F2"
+    },
+    "base-300": {
+      "type": "color",
+      "value": "#E5E6E6"
+    },
+    "base-content": {
+      "type": "color",
+      "value": "#1F2937"
+    },
+    "base-content-60": {
+      "type": "color",
+      "value": "#9CA3AF"
+    },
+    "base-content-70": {
+      "type": "color",
+      "value": "#6B7280"
+    },
+    "error": {
+      "type": "color",
+      "value": "#F87171"
+    },
+    "font-size-base": {
+      "type": "number",
+      "value": 16
+    },
+    "font-size-sm": {
+      "type": "number",
+      "value": 14
+    },
+    "font-size-xs": {
+      "type": "number",
+      "value": 12
+    },
+    "info": {
+      "type": "color",
+      "value": "#3ABFF8"
+    },
+    "primary": {
+      "type": "color",
+      "value": "#570DF8"
+    },
+    "spacing-lg": {
+      "type": "number",
+      "value": 24
+    },
+    "spacing-md": {
+      "type": "number",
+      "value": 16
+    },
+    "spacing-sm": {
+      "type": "number",
+      "value": 8
+    },
+    "spacing-xl": {
+      "type": "number",
+      "value": 32
+    },
+    "spacing-xs": {
+      "type": "number",
+      "value": 4
+    },
+    "success": {
+      "type": "color",
+      "value": "#10B981"
+    },
+    "warning": {
+      "type": "color",
+      "value": "#FBBF24"
+    }
+  }
+}

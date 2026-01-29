@@ -12,6 +12,10 @@ interface Collection {
   variableIds?: string[];
 }
 
+interface ImportTabProps {
+  collections: Collection[];
+}
+
 // デフォルトのタイムアウト（変数数不明時）
 const DEFAULT_TIMEOUT_MS = 60000; // 1分
 
@@ -63,7 +67,7 @@ const normalizeCollectionDbPairs = (
   });
 };
 
-const ImportTab = () => {
+const ImportTab = ({ collections }: ImportTabProps) => {
   const [apiKey, setApiKey] = useState('');
   const [proxyUrl, setProxyUrl] = useState('');
   const [proxyToken, setProxyToken] = useState('');
@@ -76,7 +80,6 @@ const ImportTab = () => {
     { notionField: 'Group', variableProperty: 'group' },
     { notionField: 'Description', variableProperty: 'description' }
   ]);
-  const [collections, setCollections] = useState<Collection[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
   const importTimeoutRef = useRef<number | null>(null);
@@ -156,19 +159,14 @@ const ImportTab = () => {
       
       // 初期化データ
       if (msg.type === 'INIT_DATA') {
-        if (msg.collections) {
-          setCollections(msg.collections || []);
-        }
+        // collectionsはApp.tsxで管理されるため、ここでは処理しない
         if (msg.savedData) {
           applySavedData(msg.savedData as SavedFormData);
         }
         hasLoadedDataRef.current = true;
       }
       
-      // コレクションデータ
-      if (msg.type === 'COLLECTIONS_DATA' && msg.data) {
-        setCollections(msg.data.collections || []);
-      }
+      // コレクションデータはApp.tsxで管理されるため、ここでは処理しない
       
       // 進捗通知（タイムアウトタイマーをリセット）
       if (msg.type === 'PROGRESS' && msg.data) {
@@ -211,6 +209,14 @@ const ImportTab = () => {
     };
     
     window.addEventListener('message', handleMessage);
+    
+    // マウント時にデータをリクエスト（INIT_DATAを逃した場合の保険）
+    if (!hasLoadedDataRef.current) {
+      parent.postMessage({
+        pluginMessage: { type: 'LOAD_DATA' }
+      }, '*');
+    }
+
     return () => window.removeEventListener('message', handleMessage);
   }, [applySavedData, handleOperationComplete, resetTimeout]);
 
@@ -576,9 +582,26 @@ const ImportTab = () => {
       <section>
         <h2 className="mb-2 text-sm font-semibold">同期ペア設定</h2>
         <small className="text-xs text-base-content/70 block mb-3">
-          FigmaコレクションとNotionデータベースIDのペアを登録してください。
-          <span className="text-primary ml-1">⋮⋮をドラッグして順序を変更できます。</span>
+          FigmaコレクションとNotionデータベースのペアを設定します。
         </small>
+        
+        {/* 全選択/全解除ボタン（リスト上部） */}
+        <div className="flex justify-end gap-2 mb-2">
+          <button
+            type="button"
+            className="btn btn-outline btn-xs"
+            onClick={() => toggleAllPairs(true)}
+          >
+            全選択
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline btn-xs"
+            onClick={() => toggleAllPairs(false)}
+          >
+            全解除
+          </button>
+        </div>
         
         {/* ペアリスト（ドラッグ＆ドロップ対応） */}
         <SyncPairList
@@ -588,8 +611,8 @@ const ImportTab = () => {
           onSave={saveFormData}
         />
         
-        {/* 追加ボタンと全選択 */}
-        <div className="flex justify-between items-center mt-3">
+        {/* 追加ボタン（リスト下部） */}
+        <div className="mt-3">
           <button
             type="button"
             className="btn btn-outline btn-sm"
@@ -597,26 +620,12 @@ const ImportTab = () => {
           >
             + ペアを追加
           </button>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className="btn btn-ghost btn-xs"
-              onClick={() => toggleAllPairs(true)}
-            >
-              全選択
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost btn-xs"
-              onClick={() => toggleAllPairs(false)}
-            >
-              全解除
-            </button>
-          </div>
         </div>
-        
-        {/* オプション */}
-        <div className="mt-4 space-y-2">
+      </section>
+
+      <section>
+        <h2 className="mb-2 text-sm font-semibold">インポートオプション</h2>
+        <div className="space-y-2">
           <div className="form-control">
             <label className="label cursor-pointer justify-start gap-2">
               <input

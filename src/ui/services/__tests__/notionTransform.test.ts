@@ -141,6 +141,19 @@ describe('notionTransform', () => {
       expect(extractFromProperty(props, 'Name')).toBe('Test Title');
     });
 
+    it('should concatenate multiple segments in title property', () => {
+      const props = {
+        Name: {
+          type: 'title',
+          title: [
+            { plain_text: 'border-color-' },
+            { plain_text: 'subtle', annotations: { bold: true } },
+          ],
+        },
+      };
+      expect(extractFromProperty(props, 'Name')).toBe('border-color-subtle');
+    });
+
     it('should extract rich_text property', () => {
       const props = {
         Description: {
@@ -149,6 +162,20 @@ describe('notionTransform', () => {
         },
       };
       expect(extractFromProperty(props, 'Description')).toBe('Test Description');
+    });
+
+    it('should concatenate multiple segments in rich_text property', () => {
+      const props = {
+        Group: {
+          type: 'rich_text',
+          rich_text: [
+            { plain_text: 'Color/' },
+            { plain_text: 'Primary', annotations: { bold: true } },
+            { plain_text: '/Blue' },
+          ],
+        },
+      };
+      expect(extractFromProperty(props, 'Group')).toBe('Color/Primary/Blue');
     });
 
     it('should extract number property', () => {

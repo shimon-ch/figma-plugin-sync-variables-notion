@@ -153,7 +153,10 @@ export const extractFromProperty = (props: any, key?: string): any => {
   const p = props[key];
   if (!p || !p.type) return '';
   
-  const extractPlain = (arr: any) => (Array.isArray(arr) && arr[0]?.plain_text) || '';
+  const extractPlain = (arr: any) => 
+    Array.isArray(arr) 
+      ? arr.map((item: any) => item?.plain_text || '').join('') 
+      : '';
   
   switch (p.type) {
     case 'title':
