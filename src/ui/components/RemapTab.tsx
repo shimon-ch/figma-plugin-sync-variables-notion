@@ -3,7 +3,7 @@ import {
   ScanResult,
   BrokenReferenceGroup,
   CandidateVariable,
-  RebindResult,
+  RemapResult,
 } from '../../shared/types';
 
 // ---------------------------------------------------------------------------
@@ -19,9 +19,9 @@ type MappingState = Map<string, string>; // brokenVariableId → replacementVari
 // Component
 // ---------------------------------------------------------------------------
 
-const RebindTab = () => {
+const RemapTab = () => {
   const [isScanning, setIsScanning] = useState(false);
-  const [isRebinding, setIsRebinding] = useState(false);
+  const [isRemapping, setIsRemapping] = useState(false);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const [mappings, setMappings] = useState<MappingState>(new Map());
   const [status, setStatus] = useState<Status>(null);
@@ -51,21 +51,21 @@ const RebindTab = () => {
         setTimeout(() => setStatus(null), 5000);
       }
 
-      if (msg.type === 'REBIND_RESULT') {
-        setIsRebinding(false);
-        const result = msg.data as RebindResult;
+      if (msg.type === 'REMAP_RESULT') {
+        setIsRemapping(false);
+        const result = msg.data as RemapResult;
 
         if (result.success) {
           setStatus({
             type: 'success',
-            text: `${result.totalRebound} 箇所の参照を再バインドしました。`,
+            text: `${result.totalRemapped} 箇所の参照をリマップしました。`,
           });
           setScanResult(null);
           setMappings(new Map());
         } else {
           setStatus({
             type: 'error',
-            text: `${result.totalRebound} 箇所を再バインド（${result.errors.length} 件のエラー）`,
+            text: `${result.totalRemapped} 箇所をリマップ（${result.errors.length} 件のエラー）`,
           });
         }
         setTimeout(() => setStatus(null), 6000);
@@ -80,7 +80,7 @@ const RebindTab = () => {
 
       if (msg.type === 'ERROR' && msg.data) {
         setIsScanning(false);
-        setIsRebinding(false);
+        setIsRemapping(false);
         const data = msg.data as { message?: string };
         setStatus({ type: 'error', text: data.message || 'エラーが発生しました' });
         setTimeout(() => setStatus(null), 6000);
@@ -121,11 +121,11 @@ const RebindTab = () => {
     [],
   );
 
-  const handleRebind = useCallback(() => {
+  const handleRemap = useCallback(() => {
     if (mappings.size === 0) return;
 
-    setIsRebinding(true);
-    setStatus({ type: 'info', text: '再バインド中...' });
+    setIsRemapping(true);
+    setStatus({ type: 'info', text: 'リマップ中...' });
 
     const payload = Array.from(mappings.entries()).map(
       ([brokenVariableId, replacementVariableId]) => ({
@@ -135,7 +135,7 @@ const RebindTab = () => {
     );
 
     parent.postMessage(
-      { pluginMessage: { type: 'REBIND_VARIABLES', data: payload } },
+      { pluginMessage: { type: 'REMAP_VARIABLES', data: payload } },
       '*',
     );
   }, [mappings]);
@@ -162,9 +162,9 @@ const RebindTab = () => {
   return (
     <div className="p-4 space-y-4">
       <header>
-        <h1 className="font-semibold">Rebind Broken Variable References</h1>
+        <h1 className="font-semibold">Remap Broken Variable References</h1>
         <p className="text-xs text-base-content/70 mt-1">
-          壊れた Variable 参照を検出し、新しい Variable に一括で再バインドします
+          壊れた Variable 参照を検出し、新しい Variable に一括でリマップします
         </p>
       </header>
 
@@ -174,7 +174,7 @@ const RebindTab = () => {
           type="button"
           className="btn btn-primary w-full"
           onClick={handleScan}
-          disabled={isScanning || isRebinding}
+          disabled={isScanning || isRemapping}
         >
           {isScanning ? (
             <>
@@ -231,16 +231,16 @@ const RebindTab = () => {
             <button
               type="button"
               className="btn btn-accent w-full"
-              onClick={handleRebind}
-              disabled={isRebinding || mappedCount === 0}
+              onClick={handleRemap}
+              disabled={isRemapping || mappedCount === 0}
             >
-              {isRebinding ? (
+              {isRemapping ? (
                 <>
                   <span className="loading loading-spinner" />
-                  再バインド中...
+                  リマップ中...
                 </>
               ) : (
-                `一括再バインド (${mappedCount}/${totalGroups} 件選択済み)`
+                `一括リマップ (${mappedCount}/${totalGroups} 件選択済み)`
               )}
             </button>
             {mappedCount === 0 && (
@@ -388,4 +388,4 @@ function locationLabel(loc: { kind: string; field?: string; paintIndex?: number 
   }
 }
 
-export default RebindTab;
+export default RemapTab;

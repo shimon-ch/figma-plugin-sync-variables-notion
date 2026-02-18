@@ -1,12 +1,12 @@
-// 壊れた Variable 参照のスキャンと再バインド処理
+// 壊れた Variable 参照のスキャンとリマップ処理
 import {
   MessageType,
   BrokenReference,
   BrokenReferenceGroup,
   CandidateVariable,
   ScanResult,
-  RebindMapping,
-  RebindResult,
+  RemapMapping,
+  RemapResult,
   BindingLocation,
 } from '../../shared/types';
 import { logger } from '../../shared/logger';
@@ -178,18 +178,18 @@ function buildCandidateList(
 }
 
 // ---------------------------------------------------------------------------
-// 再バインド処理
+// リマップ処理
 // ---------------------------------------------------------------------------
 
 /**
- * ユーザーが選択したマッピングに基づいて壊れた参照を再バインドする。
+ * ユーザーが選択したマッピングに基づいて壊れた参照をリマップする。
  */
-export async function rebindVariables(
-  mappings: RebindMapping[],
+export async function remapVariables(
+  mappings: RemapMapping[],
   scanResult: ScanResult,
-): Promise<RebindResult> {
+): Promise<RemapResult> {
   const errors: string[] = [];
-  let totalRebound = 0;
+  let totalRemapped = 0;
 
   // マッピングを brokenVariableId → replacementVariableId の Map に変換
   const mappingMap = new Map<string, string>();
@@ -228,8 +228,8 @@ export async function rebindVariables(
           data: {
             current: totalRebound,
             total: scanResult.brokenGroups.reduce((s, g) => s + g.affectedCount, 0),
-            phase: 'rebinding' as string,
-            message: `再バインド中...`,
+            phase: 'remapping' as string,
+            message: `リマップ中...`,
           },
         });
       }
@@ -241,8 +241,8 @@ export async function rebindVariables(
           continue;
         }
 
-        await applyRebind(node, ref.location, replacementVar);
-        totalRebound++;
+        await applyRemap(node, ref.location, replacementVar);
+        totalRemapped++;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         errors.push(`${ref.nodeName}.${locationLabel(ref.location)}: ${msg}`);
@@ -250,11 +250,11 @@ export async function rebindVariables(
     }
   }
 
-  logger.log(`[rebindVariables] Rebound ${totalRebound} references, ${errors.length} errors`);
+  logger.log(`[remapVariables] Remapped ${totalRemapped} references, ${errors.length} errors`);
 
   return {
     success: errors.length === 0,
-    totalRebound,
+    totalRemapped,
     errors,
   };
 }
@@ -264,9 +264,9 @@ export async function rebindVariables(
 // ---------------------------------------------------------------------------
 
 /**
- * 1つの壊れた参照を実際に再バインドする。
+ * 1つの壊れた参照を実際にリマップする。
  */
-async function applyRebind(
+async function applyRemap(
   node: SceneNode,
   location: BindingLocation,
   replacementVar: Variable,

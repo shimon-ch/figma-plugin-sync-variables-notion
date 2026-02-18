@@ -27,11 +27,11 @@ export const MessageType = {
   // 操作ステータス（統合用）
   OPERATION_STATUS: 'OPERATION_STATUS',
 
-  // Rebind関連
+  // Remap関連
   SCAN_BROKEN_REFS: 'SCAN_BROKEN_REFS',
   BROKEN_REFS_RESULT: 'BROKEN_REFS_RESULT',
-  REBIND_VARIABLES: 'REBIND_VARIABLES',
-  REBIND_RESULT: 'REBIND_RESULT'
+  REMAP_VARIABLES: 'REMAP_VARIABLES',
+  REMAP_RESULT: 'REMAP_RESULT'
 } as const;
 
 export type MessageType = typeof MessageType[keyof typeof MessageType];
@@ -61,8 +61,8 @@ export enum MessageTypeEnum {
   OPERATION_STATUS = 'OPERATION_STATUS',
   SCAN_BROKEN_REFS = 'SCAN_BROKEN_REFS',
   BROKEN_REFS_RESULT = 'BROKEN_REFS_RESULT',
-  REBIND_VARIABLES = 'REBIND_VARIABLES',
-  REBIND_RESULT = 'REBIND_RESULT'
+  REMAP_VARIABLES = 'REMAP_VARIABLES',
+  REMAP_RESULT = 'REMAP_RESULT'
 }
 
 export interface PluginMessage {
@@ -180,7 +180,7 @@ export interface ExportResult {
   error?: string;
 }
 
-// --- Rebind関連の型定義 ---
+// --- Remap関連の型定義 ---
 
 // バインド先の種類（ノードレベル or Paint レベル）
 export type BindingLocation =
@@ -220,14 +220,14 @@ export interface ScanResult {
 }
 
 // ユーザーが選択した置換マッピング
-export interface RebindMapping {
+export interface RemapMapping {
   brokenVariableId: string;
   replacementVariableId: string;
 }
 
-// Rebind 結果
-export interface RebindResult {
+// Remap 結果
+export interface RemapResult {
   success: boolean;
-  totalRebound: number;
+  totalRemapped: number;
   errors: string[];
 }

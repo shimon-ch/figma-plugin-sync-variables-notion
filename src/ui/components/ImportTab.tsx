@@ -545,61 +545,6 @@ const ImportTab = ({ collections }: ImportTabProps) => {
       </header>
 
       <section>
-        <h2 className="text-sm font-semibold mb-4">Notion設定</h2>
-        <div className="grid gap-6">
-          <div>
-            <label className="floating-label">
-              <span>Notion APIキー *</span>
-          </label>
-          <input
-            type="text"
-            autoComplete="off"
-              className="input input-sm input-bordered w-full"
-              placeholder="ntn_xxxxxxxxxxxxx"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            onBlur={saveFormData}
-            required
-          />
-            <small className="text-xs mt-1 block">※Notion IntegrationsからAPIキーを取得してください</small>
-        </div>
-
-          <div>
-            <label className="floating-label">
-              <span>プロキシURL（Cloudflare Workers / https必須）</span>
-            </label>
-            <input
-              type="url"
-              inputMode="url"
-              className="input input-sm input-bordered w-full"
-              placeholder="https://your-worker.your-subdomain.workers.dev"
-              value={proxyUrl}
-              onChange={(e) => setProxyUrl(e.target.value)}
-              onBlur={saveFormData}
-            required
-          />
-            <small className="text-xs mt-1 block">※httpsのみ許可。URLはローカル保存され公開ビルドへは埋め込まれません。</small>
-          </div>
-          <div>
-            <label className="floating-label">
-              <span>プロキシトークン（X-Proxy-Token）</span>
-            </label>
-            <input
-              type="text"
-              autoComplete="off"
-              className="input input-sm input-bordered w-full"
-              placeholder="任意の共有シークレット"
-              value={proxyToken}
-              onChange={(e) => setProxyToken(e.target.value)}
-              onBlur={saveFormData}
-              required
-            />
-            <small className="text-xs mt-1 block">※Cloudflare Worker の環境変数 PROXY_TOKEN と一致させてください。</small>
-          </div>
-        </div>
-      </section>
-
-      <section>
         <h2 className="mb-2 text-sm font-semibold">同期ペア設定</h2>
         <small className="text-xs text-base-content/70 block mb-3">
           FigmaコレクションとNotionデータベースのペアを設定します。
@@ -679,6 +624,61 @@ const ImportTab = ({ collections }: ImportTabProps) => {
           mappings={mappings}
           onChange={setMappings}
         />
+      </section>
+
+      <section>
+        <h2 className="text-sm font-semibold mb-4">Notion設定</h2>
+        <div className="grid gap-6">
+          <div>
+            <label className="floating-label">
+              <span>Notion APIキー *</span>
+            </label>
+            <input
+              type="text"
+              autoComplete="off"
+              className="input input-sm input-bordered w-full"
+              placeholder="ntn_xxxxxxxxxxxxx"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              onBlur={saveFormData}
+              required
+            />
+            <small className="text-xs mt-1 block">※Notion IntegrationsからAPIキーを取得してください</small>
+          </div>
+
+          <div>
+            <label className="floating-label">
+              <span>プロキシURL（Cloudflare Workers / https必須）</span>
+            </label>
+            <input
+              type="url"
+              inputMode="url"
+              className="input input-sm input-bordered w-full"
+              placeholder="https://your-worker.your-subdomain.workers.dev"
+              value={proxyUrl}
+              onChange={(e) => setProxyUrl(e.target.value)}
+              onBlur={saveFormData}
+              required
+            />
+            <small className="text-xs mt-1 block">※httpsのみ許可。URLはローカル保存され公開ビルドへは埋め込まれません。</small>
+          </div>
+          <div>
+            <label className="floating-label">
+              <span>プロキシトークン（X-Proxy-Token）</span>
+            </label>
+            <input
+              type="text"
+              autoComplete="off"
+              className="input input-sm input-bordered w-full"
+              placeholder="任意の共有シークレット"
+              value={proxyToken}
+              onChange={(e) => setProxyToken(e.target.value)}
+              onBlur={saveFormData}
+              required
+            />
+            <small className="text-xs mt-1 block">※Cloudflare Worker の環境変数 PROXY_TOKEN と一致させてください。</small>
+          </div>
+        </div>
       </section>
 
       {/* レート制限警告バナー */}

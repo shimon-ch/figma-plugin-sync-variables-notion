@@ -1,12 +1,12 @@
 // Figmaプラグインのメインコントローラー
 import { handleImportFromNotion } from './handlers/syncHandler';
-import { scanBrokenReferences, rebindVariables } from './handlers/rebindHandler';
-import { MessageType, ExportSettings, RebindMapping, ScanResult } from '../shared/types';
+import { scanBrokenReferences, remapVariables } from './handlers/remapHandler';
+import { MessageType, ExportSettings, RemapMapping, ScanResult } from '../shared/types';
 import { logger } from '../shared/logger';
 import { obfuscateApiKey, deobfuscateApiKey } from '../shared/security';
 import { exportToDesignTokens } from './utils/exportUtils';
 
-// 最新のスキャン結果を保持（rebind 時に参照）
+// 最新のスキャン結果を保持（remap 時に参照）
 let latestScanResult: ScanResult | null = null;
 
 // UIを表示
@@ -334,32 +334,32 @@ figma.ui.onmessage = async (msg: any) => {
         }
         break;
 
-      case MessageType.REBIND_VARIABLES:
+      case MessageType.REMAP_VARIABLES:
         try {
-          const mappings = msg.data as RebindMapping[];
+          const mappings = msg.data as RemapMapping[];
           
           if (!latestScanResult) {
             throw new Error('スキャン結果がありません。先にスキャンを実行してください。');
           }
           
-          logger.log(`🔄 Rebinding ${mappings.length} variable mapping(s)...`);
-          const rebindResult = await rebindVariables(mappings, latestScanResult);
+          logger.log(`🔄 Remapping ${mappings.length} variable mapping(s)...`);
+          const remapResult = await remapVariables(mappings, latestScanResult);
           
           figma.ui.postMessage({
-            type: MessageType.REBIND_RESULT,
-            data: rebindResult
+            type: MessageType.REMAP_RESULT,
+            data: remapResult
           });
           
           // 成功後にスキャン結果をクリア
           latestScanResult = null;
           
-          logger.log(`✅ Rebind complete: ${rebindResult.totalRebound} references updated`);
-        } catch (rebindError) {
-          logger.error('❌ Rebind error:', rebindError);
+          logger.log(`✅ Remap complete: ${remapResult.totalRemapped} references updated`);
+        } catch (remapError) {
+          logger.error('❌ Remap error:', remapError);
           figma.ui.postMessage({
             type: MessageType.ERROR,
             data: {
-              message: rebindError instanceof Error ? rebindError.message : '再バインドに失敗しました'
+              message: remapError instanceof Error ? remapError.message : 'リマップに失敗しました'
             }
           });
         }

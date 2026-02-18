@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react';
 import './styles/globals.css';
 import ImportTab from './components/ImportTab';
 import ExportTab from './components/ExportTab';
-import RebindTab from './components/RebindTab';
+import RemapTab from './components/RemapTab';
 
-type TabId = 'import' | 'export' | 'rebind';
+type TabId = 'import' | 'export' | 'remap';
 
 interface Collection {
   id: string;
@@ -67,20 +67,20 @@ const App = () => {
         <button
           role="tab"
           className={`flex-1 py-3 text-sm text-center border-b-2 transition-colors ${
-            activeTab === 'rebind'
+            activeTab === 'remap'
               ? 'border-primary font-medium text-base-content'
               : 'border-base-300 text-base-content/70 hover:text-base-content'
           }`}
-          onClick={() => setActiveTab('rebind')}
+          onClick={() => setActiveTab('remap')}
         >
-          Rebind
+          Remap
         </button>
       </div>
 
       {/* タブコンテンツ */}
       {activeTab === 'import' && <ImportTab collections={collections} />}
       {activeTab === 'export' && <ExportTab collections={collections} />}
-      {activeTab === 'rebind' && <RebindTab />}
+      {activeTab === 'remap' && <RemapTab />}
     </div>
   );
 };
