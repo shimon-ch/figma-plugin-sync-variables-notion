@@ -160,6 +160,13 @@ export interface SavedFormData {
   field_mappings?: FieldMapping[];  // フィールドマッピング設定
 }
 
+// プロキシのレート制限情報
+export interface RateLimitInfo {
+  requestsToday: number;   // 本日のおおよそのリクエスト数 (-1 = 取得不可)
+  dailyLimit: number;       // 日次上限
+  plan: string;             // プラン名 (例: "free")
+}
+
 // Export設定
 export interface ExportSettings {
   collectionIds: string[];  // エクスポート対象のコレクションID
