@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import './styles/globals.css';
 import ImportTab from './components/ImportTab';
 import ExportTab from './components/ExportTab';
+import RebindTab from './components/RebindTab';
 
-type TabId = 'import' | 'export';
+type TabId = 'import' | 'export' | 'rebind';
 
 interface Collection {
   id: string;
@@ -63,11 +64,23 @@ const App = () => {
         >
           Export
         </button>
+        <button
+          role="tab"
+          className={`flex-1 py-3 text-sm text-center border-b-2 transition-colors ${
+            activeTab === 'rebind'
+              ? 'border-primary font-medium text-base-content'
+              : 'border-base-300 text-base-content/70 hover:text-base-content'
+          }`}
+          onClick={() => setActiveTab('rebind')}
+        >
+          Rebind
+        </button>
       </div>
 
       {/* タブコンテンツ */}
       {activeTab === 'import' && <ImportTab collections={collections} />}
       {activeTab === 'export' && <ExportTab collections={collections} />}
+      {activeTab === 'rebind' && <RebindTab />}
     </div>
   );
 };

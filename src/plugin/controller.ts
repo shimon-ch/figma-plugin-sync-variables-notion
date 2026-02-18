@@ -1,9 +1,13 @@
 // Figmaプラグインのメインコントローラー
 import { handleImportFromNotion } from './handlers/syncHandler';
-import { MessageType, ExportSettings } from '../shared/types';
+import { scanBrokenReferences, rebindVariables } from './handlers/rebindHandler';
+import { MessageType, ExportSettings, RebindMapping, ScanResult } from '../shared/types';
 import { logger } from '../shared/logger';
 import { obfuscateApiKey, deobfuscateApiKey } from '../shared/security';
 import { exportToDesignTokens } from './utils/exportUtils';
+
+// 最新のスキャン結果を保持（rebind 時に参照）
+let latestScanResult: ScanResult | null = null;
 
 // UIを表示
 figma.showUI(__html__, {
@@ -307,6 +311,60 @@ figma.ui.onmessage = async (msg: any) => {
         }
         break;
         
+      case MessageType.SCAN_BROKEN_REFS:
+        try {
+          logger.log('🔍 Scanning for broken variable references...');
+          const scanResult = await scanBrokenReferences();
+          latestScanResult = scanResult;
+          
+          figma.ui.postMessage({
+            type: MessageType.BROKEN_REFS_RESULT,
+            data: scanResult
+          });
+          
+          logger.log(`✅ Scan complete: ${scanResult.brokenGroups.length} broken variable IDs found`);
+        } catch (scanError) {
+          logger.error('❌ Scan error:', scanError);
+          figma.ui.postMessage({
+            type: MessageType.ERROR,
+            data: {
+              message: scanError instanceof Error ? scanError.message : 'スキャンに失敗しました'
+            }
+          });
+        }
+        break;
+
+      case MessageType.REBIND_VARIABLES:
+        try {
+          const mappings = msg.data as RebindMapping[];
+          
+          if (!latestScanResult) {
+            throw new Error('スキャン結果がありません。先にスキャンを実行してください。');
+          }
+          
+          logger.log(`🔄 Rebinding ${mappings.length} variable mapping(s)...`);
+          const rebindResult = await rebindVariables(mappings, latestScanResult);
+          
+          figma.ui.postMessage({
+            type: MessageType.REBIND_RESULT,
+            data: rebindResult
+          });
+          
+          // 成功後にスキャン結果をクリア
+          latestScanResult = null;
+          
+          logger.log(`✅ Rebind complete: ${rebindResult.totalRebound} references updated`);
+        } catch (rebindError) {
+          logger.error('❌ Rebind error:', rebindError);
+          figma.ui.postMessage({
+            type: MessageType.ERROR,
+            data: {
+              message: rebindError instanceof Error ? rebindError.message : '再バインドに失敗しました'
+            }
+          });
+        }
+        break;
+
       case MessageType.CLOSE_PLUGIN:
         figma.closePlugin();
         break;

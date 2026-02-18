@@ -25,7 +25,13 @@ export const MessageType = {
   PROGRESS: 'PROGRESS',
   
   // 操作ステータス（統合用）
-  OPERATION_STATUS: 'OPERATION_STATUS'
+  OPERATION_STATUS: 'OPERATION_STATUS',
+
+  // Rebind関連
+  SCAN_BROKEN_REFS: 'SCAN_BROKEN_REFS',
+  BROKEN_REFS_RESULT: 'BROKEN_REFS_RESULT',
+  REBIND_VARIABLES: 'REBIND_VARIABLES',
+  REBIND_RESULT: 'REBIND_RESULT'
 } as const;
 
 export type MessageType = typeof MessageType[keyof typeof MessageType];
@@ -52,7 +58,11 @@ export enum MessageTypeEnum {
   SUCCESS = 'SUCCESS',
   LOADING = 'LOADING',
   PROGRESS = 'PROGRESS',
-  OPERATION_STATUS = 'OPERATION_STATUS'
+  OPERATION_STATUS = 'OPERATION_STATUS',
+  SCAN_BROKEN_REFS = 'SCAN_BROKEN_REFS',
+  BROKEN_REFS_RESULT = 'BROKEN_REFS_RESULT',
+  REBIND_VARIABLES = 'REBIND_VARIABLES',
+  REBIND_RESULT = 'REBIND_RESULT'
 }
 
 export interface PluginMessage {
@@ -161,4 +171,56 @@ export interface ExportResult {
   json?: string;          // W3C Design Tokens形式のJSON文字列
   tokenCount?: number;    // エクスポートされたトークン数
   error?: string;
+}
+
+// --- Rebind関連の型定義 ---
+
+// バインド先の種類（ノードレベル or Paint レベル）
+export type BindingLocation =
+  | { kind: 'node'; field: string }
+  | { kind: 'fill'; paintIndex: number }
+  | { kind: 'stroke'; paintIndex: number };
+
+// 壊れた参照1件の情報
+export interface BrokenReference {
+  nodeId: string;
+  nodeName: string;
+  nodeType: string;
+  location: BindingLocation;
+  brokenVariableId: string;
+}
+
+// 候補 Variable の情報（UI 表示用にシリアライズ可能な形式）
+export interface CandidateVariable {
+  id: string;
+  name: string;
+  resolvedType: string;
+  collectionName: string;
+}
+
+// 同じ壊れた Variable ID でグルーピングしたもの
+export interface BrokenReferenceGroup {
+  brokenVariableId: string;
+  affectedCount: number;
+  references: BrokenReference[];
+  candidates: CandidateVariable[];
+}
+
+// スキャン結果
+export interface ScanResult {
+  totalNodesScanned: number;
+  brokenGroups: BrokenReferenceGroup[];
+}
+
+// ユーザーが選択した置換マッピング
+export interface RebindMapping {
+  brokenVariableId: string;
+  replacementVariableId: string;
+}
+
+// Rebind 結果
+export interface RebindResult {
+  success: boolean;
+  totalRebound: number;
+  errors: string[];
 }
