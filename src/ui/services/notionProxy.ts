@@ -144,12 +144,13 @@ export async function fetchNotionData(
       throw new Error(`Notion API error: ${response.status} - ${errorText}`);
     }
 
-    // JSONパースの安全な処理
+    // JSONパースの安全な処理（bodyは一度しか読めないため事前にcloneを作成）
+    const clonedResponse = response.clone();
     let data: NotionQueryResponse;
     try {
       data = await response.json();
     } catch {
-      const text = await response.clone().text();
+      const text = await clonedResponse.text();
       const rateLimitMsg = detectCloudflareRateLimitError(response.status, text);
       throw new Error(rateLimitMsg || 'プロキシから不正なレスポンスを受信しました。');
     }
@@ -220,12 +221,13 @@ export async function fetchNotionPage(apiKey: string, pageId: string, proxyUrl: 
     throw new Error(`Notion get page error: ${response.status} - ${errorText}`);
   }
 
-  // JSONパースの安全な処理
+  // JSONパースの安全な処理（bodyは一度しか読めないため事前にcloneを作成）
+  const clonedPageResponse = response.clone();
   let data;
   try {
     data = await response.json();
   } catch {
-    const text = await response.clone().text();
+    const text = await clonedPageResponse.text();
     const rateLimitMsg = detectCloudflareRateLimitError(response.status, text);
     throw new Error(rateLimitMsg || 'プロキシから不正なレスポンスを受信しました。');
   }

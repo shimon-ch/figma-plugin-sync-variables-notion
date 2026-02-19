@@ -350,8 +350,10 @@ figma.ui.onmessage = async (msg: any) => {
             data: remapResult
           });
           
-          // 成功後にスキャン結果をクリア
-          latestScanResult = null;
+          // 成功時のみスキャン結果をクリア（失敗時はリトライできるよう保持）
+          if (remapResult.success) {
+            latestScanResult = null;
+          }
           
           logger.log(`✅ Remap complete: ${remapResult.totalRemapped} references updated`);
         } catch (remapError) {

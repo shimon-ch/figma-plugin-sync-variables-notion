@@ -84,40 +84,46 @@ export async function scanBrokenReferences(): Promise<ScanResult> {
     }
 
     // 2) fills の Paint レベル boundVariables をチェック
-    if ('fills' in node && Array.isArray((node as GeometryMixin).fills)) {
-      const fills = (node as GeometryMixin).fills as Paint[];
-      for (let pi = 0; pi < fills.length; pi++) {
-        const paint = fills[pi];
-        if (paint.type === 'SOLID' && paint.boundVariables?.color) {
-          const alias = paint.boundVariables.color;
-          if (alias && alias.id && isVariableBroken(alias.id)) {
-            brokenRefs.push({
-              nodeId: node.id,
-              nodeName: node.name,
-              nodeType: node.type,
-              location: { kind: 'fill', paintIndex: pi },
-              brokenVariableId: alias.id,
-            });
+    if ('fills' in node) {
+      const rawFills = (node as GeometryMixin).fills;
+      if (Array.isArray(rawFills) && rawFills !== (figma.mixed as unknown)) {
+        const fills = rawFills as Paint[];
+        for (let pi = 0; pi < fills.length; pi++) {
+          const paint = fills[pi];
+          if (paint.type === 'SOLID' && paint.boundVariables?.color) {
+            const alias = paint.boundVariables.color;
+            if (alias && alias.id && isVariableBroken(alias.id)) {
+              brokenRefs.push({
+                nodeId: node.id,
+                nodeName: node.name,
+                nodeType: node.type,
+                location: { kind: 'fill', paintIndex: pi },
+                brokenVariableId: alias.id,
+              });
+            }
           }
         }
       }
     }
 
     // 3) strokes の Paint レベル boundVariables をチェック
-    if ('strokes' in node && Array.isArray((node as GeometryMixin).strokes)) {
-      const strokes = (node as GeometryMixin).strokes as Paint[];
-      for (let pi = 0; pi < strokes.length; pi++) {
-        const paint = strokes[pi];
-        if (paint.type === 'SOLID' && paint.boundVariables?.color) {
-          const alias = paint.boundVariables.color;
-          if (alias && alias.id && isVariableBroken(alias.id)) {
-            brokenRefs.push({
-              nodeId: node.id,
-              nodeName: node.name,
-              nodeType: node.type,
-              location: { kind: 'stroke', paintIndex: pi },
-              brokenVariableId: alias.id,
-            });
+    if ('strokes' in node) {
+      const rawStrokes = (node as GeometryMixin).strokes;
+      if (Array.isArray(rawStrokes) && rawStrokes !== (figma.mixed as unknown)) {
+        const strokes = rawStrokes as Paint[];
+        for (let pi = 0; pi < strokes.length; pi++) {
+          const paint = strokes[pi];
+          if (paint.type === 'SOLID' && paint.boundVariables?.color) {
+            const alias = paint.boundVariables.color;
+            if (alias && alias.id && isVariableBroken(alias.id)) {
+              brokenRefs.push({
+                nodeId: node.id,
+                nodeName: node.name,
+                nodeType: node.type,
+                location: { kind: 'stroke', paintIndex: pi },
+                brokenVariableId: alias.id,
+              });
+            }
           }
         }
       }
@@ -227,6 +233,16 @@ export async function remapVariables(
       continue;
     }
 
+    // resolvedType の互換性チェック（COLOR フィールドへの非 COLOR 変数バインドを防ぐ）
+    if (group.references.length > 0) {
+      const firstRef = group.references[0];
+      const isPaintLocation = firstRef.location.kind === 'fill' || firstRef.location.kind === 'stroke';
+      if (isPaintLocation && replacementVar.resolvedType !== 'COLOR') {
+        errors.push(`${group.brokenVariableName}: fill/stroke には COLOR 型の Variable のみバインドできます（選択: ${replacementVar.resolvedType}）`);
+        continue;
+      }
+    }
+
     for (let i = 0; i < group.references.length; i++) {
       const ref = group.references[i];
 
@@ -294,6 +310,9 @@ async function applyRemap(
         throw new Error(`ノード ${node.name} は fills を持っていません`);
       }
       const fillNode = node as GeometryMixin;
+      if (!Array.isArray(fillNode.fills) || fillNode.fills === (figma.mixed as unknown)) {
+        throw new Error(`ノード ${node.name} の fills は mixed 状態のため操作できません`);
+      }
       const fills = [...(fillNode.fills as Paint[])];
       const paint = fills[location.paintIndex];
       if (!paint || paint.type !== 'SOLID') {
@@ -313,6 +332,9 @@ async function applyRemap(
         throw new Error(`ノード ${node.name} は strokes を持っていません`);
       }
       const strokeNode = node as GeometryMixin;
+      if (!Array.isArray(strokeNode.strokes) || strokeNode.strokes === (figma.mixed as unknown)) {
+        throw new Error(`ノード ${node.name} の strokes は mixed 状態のため操作できません`);
+      }
       const strokes = [...(strokeNode.strokes as Paint[])];
       const paint = strokes[location.paintIndex];
       if (!paint || paint.type !== 'SOLID') {

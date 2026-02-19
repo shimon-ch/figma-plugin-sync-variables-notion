@@ -59,6 +59,7 @@ export default {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization, Notion-Version, Accept, X-Proxy-Token',
+      'Access-Control-Expose-Headers': 'X-Proxy-Plan, X-Proxy-Daily-Limit, X-Proxy-Requests-Today',
       'Access-Control-Max-Age': '86400',
     };
 
