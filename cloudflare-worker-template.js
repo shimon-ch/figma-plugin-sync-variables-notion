@@ -47,7 +47,8 @@ async function incrementDailyCounter() {
     }));
 
     return count;
-  } catch {
+  } catch (error) {
+    console.error('[incrementDailyCounter] Cache API error:', error);
     return -1;
   }
 }

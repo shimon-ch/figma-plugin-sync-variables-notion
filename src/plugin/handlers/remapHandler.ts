@@ -42,8 +42,9 @@ export async function scanBrokenReferences(): Promise<ScanResult> {
     return broken;
   }
 
-  // fills/strokes は Paint レベルのループで処理するため、ノードレベルでは重複スキップ
-  const PAINT_LEVEL_FIELDS = new Set(['fills', 'strokes', 'effects', 'layoutGrids', 'textRangeFills', 'componentProperties']);
+  // fills/strokes は Paint レベルのループで個別に処理するため、ノードレベルでは重複スキップ
+  // textRangeFills/componentProperties はノードレベルの boundVariables 構造が異なるためスキップ
+  const SKIP_NODE_LEVEL_FIELDS = new Set(['fills', 'strokes', 'textRangeFills', 'componentProperties']);
 
   for (let i = 0; i < allNodes.length; i++) {
     const node = allNodes[i];
@@ -60,11 +61,11 @@ export async function scanBrokenReferences(): Promise<ScanResult> {
       });
     }
 
-    // 1) ノードレベルの boundVariables をチェック（Paint 系フィールドは除外）
+    // 1) ノードレベルの boundVariables をチェック（fills/strokes は Paint レベルで処理するため除外）
     if (node.boundVariables) {
       const bv = node.boundVariables as Record<string, VariableAlias | VariableAlias[] | undefined>;
       for (const field of Object.keys(bv)) {
-        if (PAINT_LEVEL_FIELDS.has(field)) continue;
+        if (SKIP_NODE_LEVEL_FIELDS.has(field)) continue;
         const binding = bv[field];
         if (!binding) continue;
 

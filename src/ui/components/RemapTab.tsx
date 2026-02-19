@@ -25,6 +25,22 @@ const RemapTab = () => {
   const [mappings, setMappings] = useState<MappingState>(new Map());
   const [status, setStatus] = useState<Status>(null);
   const [filterText, setFilterText] = useState('');
+  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // アンマウント後の state 更新を防ぐため、タイマーを ref で管理
+  const setStatusWithTimer = useCallback((s: Status, ms = 6000) => {
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    setStatus(s);
+    if (s !== null) {
+      statusTimerRef.current = setTimeout(() => setStatus(null), ms);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (statusTimerRef.current) clearTimeout(statusTimerRef.current);
+    };
+  }, []);
 
   // ------------------------------------------------------------------
   // プラグインからのメッセージ受信
@@ -51,16 +67,15 @@ const RemapTab = () => {
         }
 
         if (result.brokenGroups.length === 0) {
-          setStatus({ type: 'success', text: '壊れた参照は見つかりませんでした。' });
+          setStatusWithTimer({ type: 'success', text: '壊れた参照は見つかりませんでした。' });
         } else {
           const totalAffected = result.brokenGroups.reduce((s, g) => s + g.affectedCount, 0);
           const autoCount = autoMappings.size;
-          setStatus({
+          setStatusWithTimer({
             type: 'info',
             text: `${result.brokenGroups.length} 件の壊れた参照が見つかりました（計 ${totalAffected} 箇所）${autoCount > 0 ? `。${autoCount} 件は同名候補に自動マッチ済み` : ''}`,
           });
         }
-        setTimeout(() => setStatus(null), 6000);
       }
 
       if (msg.type === 'REMAP_RESULT') {
@@ -68,19 +83,18 @@ const RemapTab = () => {
         const result = msg.data as RemapResult;
 
         if (result.success) {
-          setStatus({
+          setStatusWithTimer({
             type: 'success',
             text: `${result.totalRemapped} 箇所の参照をリマップしました。`,
           });
           setScanResult(null);
           setMappings(new Map());
         } else {
-          setStatus({
+          setStatusWithTimer({
             type: 'error',
             text: `${result.totalRemapped} 箇所をリマップ（${result.errors.length} 件のエラー）`,
           });
         }
-        setTimeout(() => setStatus(null), 6000);
       }
 
       if (msg.type === 'PROGRESS' && msg.data) {
@@ -94,8 +108,7 @@ const RemapTab = () => {
         setIsScanning(false);
         setIsRemapping(false);
         const data = msg.data as { message?: string };
-        setStatus({ type: 'error', text: data.message || 'エラーが発生しました' });
-        setTimeout(() => setStatus(null), 6000);
+        setStatusWithTimer({ type: 'error', text: data.message || 'エラーが発生しました' });
       }
     };
 
@@ -323,12 +336,11 @@ const BrokenGroupCard = ({
       )
     : group.candidates;
 
-  // 外側クリックで閉じる
+  // 外側クリックで閉じる（検索テキストは維持）
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setIsOpen(false);
-        setSearchText('');
       }
     };
     if (isOpen) {
@@ -340,7 +352,7 @@ const BrokenGroupCard = ({
   const handleSelect = (candidateId: string) => {
     onSelect(candidateId);
     setIsOpen(false);
-    setSearchText('');
+    setSearchText(''); // 選択確定時のみリセット
   };
 
   const handleClear = (e: React.MouseEvent) => {
