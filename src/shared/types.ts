@@ -208,9 +208,11 @@ export interface CandidateVariable {
 // 同じ壊れた Variable ID でグルーピングしたもの
 export interface BrokenReferenceGroup {
   brokenVariableId: string;
+  brokenVariableName: string;
   affectedCount: number;
   references: BrokenReference[];
   candidates: CandidateVariable[];
+  suggestedReplacementId?: string; // 同名候補が見つかった場合の自動マッチ
 }
 
 // スキャン結果

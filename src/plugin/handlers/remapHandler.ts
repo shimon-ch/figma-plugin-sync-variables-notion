@@ -9,7 +9,6 @@ import {
   RemapResult,
   BindingLocation,
 } from '../../shared/types';
-import { logger } from '../../shared/logger';
 
 // ---------------------------------------------------------------------------
 // スキャン処理
@@ -23,33 +22,32 @@ export async function scanBrokenReferences(): Promise<ScanResult> {
   const allNodes = figma.currentPage.findAll();
   const totalNodesScanned = allNodes.length;
 
-  logger.log(`[scanBrokenReferences] Scanning ${totalNodesScanned} nodes...`);
-
-  // 壊れた参照を収集
   const brokenRefs: BrokenReference[] = [];
 
-  // 解決済み Variable ID のキャッシュ（同じ ID を何度も問い合わせない）
+  // 解決済み Variable ID のキャッシュ
   const resolvedCache = new Map<string, boolean>();
 
-  async function isVariableBroken(variableId: string): Promise<boolean> {
+  // ローカル Variable の ID セットを事前に取得
+  // 重要: getVariableByIdAsync は削除済みの Variable も返す（Figma の仕様）。
+  // そのため getLocalVariablesAsync() の結果にない ID = 壊れた参照、として判定する。
+  const localVariables = await figma.variables.getLocalVariablesAsync();
+  const localVariableIds = new Set(localVariables.map(v => v.id));
+
+  function isVariableBroken(variableId: string): boolean {
     if (resolvedCache.has(variableId)) {
       return resolvedCache.get(variableId)!;
     }
-    try {
-      const variable = await figma.variables.getVariableByIdAsync(variableId);
-      const broken = variable === null;
-      resolvedCache.set(variableId, broken);
-      return broken;
-    } catch {
-      resolvedCache.set(variableId, true);
-      return true;
-    }
+    const broken = !localVariableIds.has(variableId);
+    resolvedCache.set(variableId, broken);
+    return broken;
   }
+
+  // fills/strokes は Paint レベルのループで処理するため、ノードレベルでは重複スキップ
+  const PAINT_LEVEL_FIELDS = new Set(['fills', 'strokes', 'effects', 'layoutGrids', 'textRangeFills', 'componentProperties']);
 
   for (let i = 0; i < allNodes.length; i++) {
     const node = allNodes[i];
 
-    // 進捗を 100 件ごとに通知
     if (i % 100 === 0) {
       figma.ui.postMessage({
         type: MessageType.PROGRESS,
@@ -62,16 +60,17 @@ export async function scanBrokenReferences(): Promise<ScanResult> {
       });
     }
 
-    // 1) ノードレベルの boundVariables をチェック
+    // 1) ノードレベルの boundVariables をチェック（Paint 系フィールドは除外）
     if (node.boundVariables) {
       const bv = node.boundVariables as Record<string, VariableAlias | VariableAlias[] | undefined>;
       for (const field of Object.keys(bv)) {
+        if (PAINT_LEVEL_FIELDS.has(field)) continue;
         const binding = bv[field];
         if (!binding) continue;
 
         const aliases: VariableAlias[] = Array.isArray(binding) ? binding : [binding];
         for (const alias of aliases) {
-          if (alias && alias.id && (await isVariableBroken(alias.id))) {
+          if (alias && alias.id && isVariableBroken(alias.id)) {
             brokenRefs.push({
               nodeId: node.id,
               nodeName: node.name,
@@ -91,7 +90,7 @@ export async function scanBrokenReferences(): Promise<ScanResult> {
         const paint = fills[pi];
         if (paint.type === 'SOLID' && paint.boundVariables?.color) {
           const alias = paint.boundVariables.color;
-          if (alias && alias.id && (await isVariableBroken(alias.id))) {
+          if (alias && alias.id && isVariableBroken(alias.id)) {
             brokenRefs.push({
               nodeId: node.id,
               nodeName: node.name,
@@ -111,7 +110,7 @@ export async function scanBrokenReferences(): Promise<ScanResult> {
         const paint = strokes[pi];
         if (paint.type === 'SOLID' && paint.boundVariables?.color) {
           const alias = paint.boundVariables.color;
-          if (alias && alias.id && (await isVariableBroken(alias.id))) {
+          if (alias && alias.id && isVariableBroken(alias.id)) {
             brokenRefs.push({
               nodeId: node.id,
               nodeName: node.name,
@@ -125,8 +124,6 @@ export async function scanBrokenReferences(): Promise<ScanResult> {
     }
   }
 
-  logger.log(`[scanBrokenReferences] Found ${brokenRefs.length} broken references`);
-
   // 壊れた Variable ID でグルーピング
   const groupMap = new Map<string, BrokenReference[]>();
   for (const ref of brokenRefs) {
@@ -135,28 +132,39 @@ export async function scanBrokenReferences(): Promise<ScanResult> {
     groupMap.set(ref.brokenVariableId, list);
   }
 
-  // 候補 Variable を検索
-  const allVariables = await figma.variables.getLocalVariablesAsync();
+  // 候補 Variable を取得
   const allCollections = await figma.variables.getLocalVariableCollectionsAsync();
   const collectionNameMap = new Map<string, string>();
   for (const c of allCollections) {
     collectionNameMap.set(c.id, c.name);
   }
 
-  const brokenGroups: BrokenReferenceGroup[] = [];
+  const candidateList = buildCandidateList(localVariables, collectionNameMap);
 
+  // 候補名の高速検索用マップ（名前 → id）
+  const candidateByName = new Map<string, string>();
+  for (const c of candidateList) {
+    candidateByName.set(c.name.toLowerCase(), c.id);
+  }
+
+  const brokenGroups: BrokenReferenceGroup[] = [];
   for (const [brokenId, refs] of groupMap) {
-    const candidates = buildCandidateList(allVariables, collectionNameMap);
+    // getVariableByIdAsync で削除済み Variable の名前を取得（Figma は削除後も返す）
+    const brokenVar = await figma.variables.getVariableByIdAsync(brokenId);
+    const brokenVariableName = brokenVar?.name ?? brokenId;
+
+    // 壊れた Variable 名と同名の候補を自動マッチ
+    const suggestedReplacementId = candidateByName.get(brokenVariableName.toLowerCase());
 
     brokenGroups.push({
       brokenVariableId: brokenId,
+      brokenVariableName,
       affectedCount: refs.length,
       references: refs,
-      candidates,
+      candidates: candidateList,
+      suggestedReplacementId,
     });
   }
-
-  logger.log(`[scanBrokenReferences] Grouped into ${brokenGroups.length} broken variable IDs`);
 
   return { totalNodesScanned, brokenGroups };
 }
@@ -191,13 +199,11 @@ export async function remapVariables(
   const errors: string[] = [];
   let totalRemapped = 0;
 
-  // マッピングを brokenVariableId → replacementVariableId の Map に変換
   const mappingMap = new Map<string, string>();
   for (const m of mappings) {
     mappingMap.set(m.brokenVariableId, m.replacementVariableId);
   }
 
-  // 置換先 Variable のキャッシュ
   const variableCache = new Map<string, Variable>();
 
   async function getReplacementVariable(id: string): Promise<Variable | null> {
@@ -207,10 +213,13 @@ export async function remapVariables(
     return v;
   }
 
-  // 全グループを走査して再バインド
+  const totalTargets = scanResult.brokenGroups
+    .filter(g => mappingMap.has(g.brokenVariableId))
+    .reduce((s, g) => s + g.affectedCount, 0);
+
   for (const group of scanResult.brokenGroups) {
     const replacementId = mappingMap.get(group.brokenVariableId);
-    if (!replacementId) continue; // マッピングなし → スキップ
+    if (!replacementId) continue;
 
     const replacementVar = await getReplacementVariable(replacementId);
     if (!replacementVar) {
@@ -221,15 +230,14 @@ export async function remapVariables(
     for (let i = 0; i < group.references.length; i++) {
       const ref = group.references[i];
 
-      // 進捗通知
-      if (i % 20 === 0) {
+      if (totalRemapped % 20 === 0) {
         figma.ui.postMessage({
           type: MessageType.PROGRESS,
           data: {
-            current: totalRebound,
-            total: scanResult.brokenGroups.reduce((s, g) => s + g.affectedCount, 0),
+            current: totalRemapped,
+            total: totalTargets,
             phase: 'remapping' as string,
-            message: `リマップ中...`,
+            message: `リマップ中: ${totalRemapped}/${totalTargets}...`,
           },
         });
       }
@@ -250,7 +258,7 @@ export async function remapVariables(
     }
   }
 
-  logger.log(`[remapVariables] Remapped ${totalRemapped} references, ${errors.length} errors`);
+  console.log(`[remapVariables] Remapped ${totalRemapped} references, ${errors.length} errors`);
 
   return {
     success: errors.length === 0,
@@ -263,9 +271,6 @@ export async function remapVariables(
 // 内部ヘルパー
 // ---------------------------------------------------------------------------
 
-/**
- * 1つの壊れた参照を実際にリマップする。
- */
 async function applyRemap(
   node: SceneNode,
   location: BindingLocation,

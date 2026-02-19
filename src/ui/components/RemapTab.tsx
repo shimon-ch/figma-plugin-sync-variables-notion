@@ -1,8 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ScanResult,
   BrokenReferenceGroup,
-  CandidateVariable,
   RemapResult,
 } from '../../shared/types';
 
@@ -12,8 +11,8 @@ import {
 
 type Status = { type: 'success' | 'error' | 'info'; text: string } | null;
 
-// ユーザーが各グループに対して選択した置換先 Variable ID
-type MappingState = Map<string, string>; // brokenVariableId → replacementVariableId
+// brokenVariableId → replacementVariableId
+type MappingState = Map<string, string>;
 
 // ---------------------------------------------------------------------------
 // Component
@@ -40,15 +39,28 @@ const RemapTab = () => {
         const result = msg.data as ScanResult;
         setScanResult(result);
 
+        // 同名候補が見つかったグループは自動でマッピングに追加
+        const autoMappings = new Map<string, string>();
+        for (const g of result.brokenGroups) {
+          if (g.suggestedReplacementId) {
+            autoMappings.set(g.brokenVariableId, g.suggestedReplacementId);
+          }
+        }
+        if (autoMappings.size > 0) {
+          setMappings(autoMappings);
+        }
+
         if (result.brokenGroups.length === 0) {
           setStatus({ type: 'success', text: '壊れた参照は見つかりませんでした。' });
         } else {
+          const totalAffected = result.brokenGroups.reduce((s, g) => s + g.affectedCount, 0);
+          const autoCount = autoMappings.size;
           setStatus({
             type: 'info',
-            text: `${result.brokenGroups.length} 件の壊れた Variable ID が見つかりました（計 ${result.brokenGroups.reduce((s, g) => s + g.affectedCount, 0)} 箇所）`,
+            text: `${result.brokenGroups.length} 件の壊れた参照が見つかりました（計 ${totalAffected} 箇所）${autoCount > 0 ? `。${autoCount} 件は同名候補に自動マッチ済み` : ''}`,
           });
         }
-        setTimeout(() => setStatus(null), 5000);
+        setTimeout(() => setStatus(null), 6000);
       }
 
       if (msg.type === 'REMAP_RESULT') {
@@ -147,9 +159,7 @@ const RemapTab = () => {
     scanResult?.brokenGroups.filter((g) => {
       if (!filterText) return true;
       const lower = filterText.toLowerCase();
-      // 壊れた Variable ID で検索
-      if (g.brokenVariableId.toLowerCase().includes(lower)) return true;
-      // 影響ノード名で検索
+      if (g.brokenVariableName.toLowerCase().includes(lower)) return true;
       return g.references.some((r) => r.nodeName.toLowerCase().includes(lower));
     }) ?? [];
 
@@ -205,7 +215,7 @@ const RemapTab = () => {
               <input
                 type="text"
                 className="input input-sm input-bordered w-full mb-3"
-                placeholder="ノード名や Variable ID で絞り込み..."
+                placeholder="Variable 名やノード名で絞り込み..."
                 value={filterText}
                 onChange={(e) => setFilterText(e.target.value)}
               />
@@ -298,25 +308,65 @@ const BrokenGroupCard = ({
   onSelect,
 }: BrokenGroupCardProps) => {
   const [expanded, setExpanded] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // 候補をコレクション名でグルーピングして表示
-  const groupedCandidates = groupCandidatesByCollection(group.candidates);
+  // 選択中の候補の表示名
+  const selectedCandidate = group.candidates.find(c => c.id === selectedReplacement);
+
+  // ファジー検索（部分一致）でフィルタリング
+  const filteredCandidates = searchText
+    ? group.candidates.filter(c =>
+        c.name.toLowerCase().includes(searchText.toLowerCase()) ||
+        c.collectionName.toLowerCase().includes(searchText.toLowerCase())
+      )
+    : group.candidates;
+
+  // 外側クリックで閉じる
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+        setSearchText('');
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  const handleSelect = (candidateId: string) => {
+    onSelect(candidateId);
+    setIsOpen(false);
+    setSearchText('');
+  };
+
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onSelect('');
+    setSearchText('');
+  };
 
   return (
     <div className="bg-base-200 rounded-lg p-3">
       {/* Header */}
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-mono text-error truncate">
-            {group.brokenVariableId}
+          <p className="text-sm font-medium truncate text-error">
+            {group.brokenVariableName}
           </p>
           <p className="text-xs text-base-content/70 mt-0.5">
-            {group.affectedCount} 箇所で使用
+            {group.affectedCount} 箇所で参照が壊れています
+            {group.suggestedReplacementId && (
+              <span className="ml-1 text-success">・同名候補に自動マッチ済み</span>
+            )}
           </p>
         </div>
         <button
           type="button"
-          className="btn btn-ghost btn-xs"
+          className="btn btn-ghost btn-xs shrink-0"
           onClick={() => setExpanded(!expanded)}
         >
           {expanded ? '閉じる' : '詳細'}
@@ -338,23 +388,74 @@ const BrokenGroupCard = ({
         </div>
       )}
 
-      {/* 置換先セレクター */}
-      <select
-        className="select select-sm select-bordered w-full"
-        value={selectedReplacement}
-        onChange={(e) => onSelect(e.target.value)}
-      >
-        <option value="">-- 置換先を選択 --</option>
-        {groupedCandidates.map(([collectionName, candidates]) => (
-          <optgroup key={collectionName} label={collectionName}>
-            {candidates.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} ({c.resolvedType})
-              </option>
-            ))}
-          </optgroup>
-        ))}
-      </select>
+      {/* ファジー検索付き置換先セレクター */}
+      <div ref={containerRef} className="relative">
+        {/* トリガーボタン */}
+        <div
+          className="input input-sm input-bordered w-full flex items-center justify-between cursor-pointer gap-1"
+          onClick={() => {
+            setIsOpen(!isOpen);
+            if (!isOpen) setSearchText('');
+          }}
+        >
+          {selectedCandidate ? (
+            <>
+              <span className="truncate text-xs flex-1">{selectedCandidate.name}</span>
+              <span className="text-base-content/40 text-xs shrink-0">{selectedCandidate.collectionName}</span>
+              <button
+                type="button"
+                className="btn btn-ghost btn-xs p-0 h-auto min-h-0 shrink-0"
+                onClick={handleClear}
+              >
+                ✕
+              </button>
+            </>
+          ) : (
+            <span className="text-base-content/40 text-xs">-- 置換先を選択 --</span>
+          )}
+        </div>
+
+        {/* ドロップダウン */}
+        {isOpen && (
+          <div className="absolute z-50 w-full mt-1 bg-base-100 border border-base-300 rounded-lg shadow-lg">
+            {/* 検索入力 */}
+            <div className="p-2 border-b border-base-300">
+              <input
+                type="text"
+                className="input input-xs input-bordered w-full"
+                placeholder="Variable 名で絞り込み..."
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                autoFocus
+              />
+            </div>
+
+            {/* 候補リスト */}
+            <div className="max-h-48 overflow-y-auto">
+              {filteredCandidates.length === 0 ? (
+                <p className="text-xs text-base-content/40 text-center py-3">
+                  候補が見つかりません
+                </p>
+              ) : (
+                filteredCandidates.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className={`w-full text-left px-3 py-2 hover:bg-base-200 flex items-center justify-between gap-2 ${
+                      c.id === selectedReplacement ? 'bg-primary/10' : ''
+                    }`}
+                    onClick={() => handleSelect(c.id)}
+                  >
+                    <span className="text-xs truncate flex-1">{c.name}</span>
+                    <span className="text-xs text-base-content/40 shrink-0">{c.collectionName}</span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -362,18 +463,6 @@ const BrokenGroupCard = ({
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function groupCandidatesByCollection(
-  candidates: CandidateVariable[],
-): [string, CandidateVariable[]][] {
-  const map = new Map<string, CandidateVariable[]>();
-  for (const c of candidates) {
-    const list = map.get(c.collectionName) ?? [];
-    list.push(c);
-    map.set(c.collectionName, list);
-  }
-  return Array.from(map.entries());
-}
 
 function locationLabel(loc: { kind: string; field?: string; paintIndex?: number }): string {
   switch (loc.kind) {
