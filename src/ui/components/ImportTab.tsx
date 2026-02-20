@@ -1,7 +1,7 @@
 import { useState, useEffect, FormEvent, useRef, useCallback } from 'react';
-import { fetchNotionData, fetchNotionPage } from '../services/notionProxy';
+import { fetchNotionData, fetchNotionPage, getLatestRateLimitInfo } from '../services/notionProxy';
 import { transformNotionResponse } from '../services/notionTransform';
-import { ImportSettings, FieldMapping, NotionVariable, SavedFormData, ProgressData, CollectionDbPair } from '../../shared/types';
+import { ImportSettings, FieldMapping, NotionVariable, SavedFormData, ProgressData, CollectionDbPair, RateLimitInfo } from '../../shared/types';
 import FieldMappingEditor from './FieldMappingEditor';
 import SyncPairList, { createEmptyPair } from './SyncPairList';
 import { generateUUID } from '../../shared/uuid';
@@ -15,9 +15,6 @@ interface Collection {
 interface ImportTabProps {
   collections: Collection[];
 }
-
-// デフォルトのタイムアウト（変数数不明時）
-const DEFAULT_TIMEOUT_MS = 60000; // 1分
 
 // 有効なvariablePropertyの値
 const VALID_VARIABLE_PROPERTIES: FieldMapping['variableProperty'][] = [
@@ -82,36 +79,40 @@ const ImportTab = ({ collections }: ImportTabProps) => {
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
-  const importTimeoutRef = useRef<number | null>(null);
-  const currentTimeoutMsRef = useRef<number>(DEFAULT_TIMEOUT_MS);
+  const [rateLimitWarning, setRateLimitWarning] = useState<{ type: 'warning' | 'error'; text: string } | null>(null);
   const hasLoadedDataRef = useRef(false);
-  
+
   // 連続インポート中のセッションID（グローバルメッセージハンドラの誤動作防止用）
   const importRunIdRef = useRef<string | null>(null);
 
   // コレクション+DBIDペアの状態
   const [collectionDbPairs, setCollectionDbPairs] = useState<CollectionDbPair[]>([createEmptyPair()]);
 
-  // タイムアウトをクリアするヘルパー関数
-  const clearImportTimeout = useCallback(() => {
-    if (importTimeoutRef.current) {
-      clearTimeout(importTimeoutRef.current);
-      importTimeoutRef.current = null;
-    }
-  }, []);
+  // キャンセル制御
+  const isCancelledRef = useRef(false);
+  const cancelCurrentPairRef = useRef<(() => void) | null>(null);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
-  // タイムアウト処理のハンドラー
-  const handleTimeout = useCallback(() => {
+  useEffect(() => {
+    if (!isLoading) return;
+    setElapsedSeconds(0);
+    const id = window.setInterval(() => setElapsedSeconds(s => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [isLoading]);
+
+  const formatElapsed = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return m > 0 ? `${m}分${s}秒` : `${s}秒`;
+  };
+
+  const handleCancel = useCallback(() => {
+    isCancelledRef.current = true;
+    cancelCurrentPairRef.current?.();
     setIsLoading(false);
-    setStatus({ type: 'error', text: 'インポートがタイムアウトしました。通信状況を確認してください。' });
-    importTimeoutRef.current = null;
+    importRunIdRef.current = null;
+    setStatus({ type: 'info', text: 'インポートをキャンセルしました。' });
   }, []);
-
-  // タイムアウトタイマーをリセットする関数
-  const resetTimeout = useCallback(() => {
-    clearImportTimeout();
-    importTimeoutRef.current = window.setTimeout(handleTimeout, currentTimeoutMsRef.current);
-  }, [clearImportTimeout, handleTimeout]);
 
   // 保存データを適用するヘルパー関数
   const applySavedData = useCallback((data: SavedFormData) => {
@@ -146,10 +147,9 @@ const ImportTab = ({ collections }: ImportTabProps) => {
       return;
     }
     setIsLoading(false);
-    clearImportTimeout();
     setStatus({ type: success ? 'success' : 'error', text: message });
     window.setTimeout(() => setStatus(null), success ? 4000 : 6000);
-  }, [clearImportTimeout]);
+  }, []);
 
   // 初期データを受信
   useEffect(() => {
@@ -168,10 +168,9 @@ const ImportTab = ({ collections }: ImportTabProps) => {
       
       // コレクションデータはApp.tsxで管理されるため、ここでは処理しない
       
-      // 進捗通知（タイムアウトタイマーをリセット）
+      // 進捗通知
       if (msg.type === 'PROGRESS' && msg.data) {
         const progressData = msg.data as ProgressData;
-        resetTimeout();
         setStatus({ type: 'info', text: progressData.message });
       }
 
@@ -218,7 +217,7 @@ const ImportTab = ({ collections }: ImportTabProps) => {
     }
 
     return () => window.removeEventListener('message', handleMessage);
-  }, [applySavedData, handleOperationComplete, resetTimeout]);
+  }, [applySavedData, handleOperationComplete]);
 
   // 入力値を保存する関数
   const saveFormData = useCallback(() => {
@@ -278,7 +277,11 @@ const ImportTab = ({ collections }: ImportTabProps) => {
     totalCount: number
   ): Promise<ImportResult> => {
     const { collectionName, databaseId, isManualInput } = pair;
-    
+
+    if (isCancelledRef.current) {
+      return { success: false, message: `${collectionName}: キャンセルされました`, collectionName, shouldAbort: true };
+    }
+
     try {
       setStatus({ type: 'info', text: `[${currentIndex + 1}/${totalCount}] ${collectionName}: Notionからデータを取得中...` });
       
@@ -319,20 +322,19 @@ const ImportTab = ({ collections }: ImportTabProps) => {
         variables
       };
 
-      // 同期的にインポートを実行するためのPromise（タイムアウト付き）
-      const SINGLE_PAIR_TIMEOUT = 120000; // 2分
-      
+      // 同期的にインポートを実行するためのPromise
       return new Promise((resolve) => {
-        let timeoutId: number | null = null;
-        
-        // クリーンアップ関数（リスナーとタイムアウトの両方を削除）
+        // クリーンアップ関数（リスナーとキャンセル登録の両方を削除）
         // リスナーを即座に削除することでレースコンディションを防止
         const cleanup = () => {
           window.removeEventListener('message', handleImportResult);
-          if (timeoutId !== null) {
-            clearTimeout(timeoutId);
-            timeoutId = null;
-          }
+          cancelCurrentPairRef.current = null;
+        };
+
+        // キャンセルボタンから呼び出せるよう登録
+        cancelCurrentPairRef.current = () => {
+          cleanup();
+          resolve({ success: false, message: `${collectionName}: キャンセルされました`, collectionName, shouldAbort: true });
         };
         
         const handleImportResult = (event: MessageEvent) => {
@@ -370,17 +372,6 @@ const ImportTab = ({ collections }: ImportTabProps) => {
             return;
           }
         };
-        
-        // タイムアウト設定
-        timeoutId = window.setTimeout(() => {
-          cleanup();
-          resolve({
-            success: false,
-            message: `${collectionName}: インポートがタイムアウトしました`,
-            collectionName,
-            shouldAbort: true
-          });
-        }, SINGLE_PAIR_TIMEOUT);
         
         window.addEventListener('message', handleImportResult);
         
@@ -426,23 +417,22 @@ const ImportTab = ({ collections }: ImportTabProps) => {
     // 連続インポートセッション開始（グローバルハンドラの誤動作防止）
     const runId = generateUUID();
     importRunIdRef.current = runId;
+    isCancelledRef.current = false;
 
     try {
-      clearImportTimeout();
       setIsLoading(true);
-      
-      // タイムアウト設定（ペア数に応じて延長）
-      currentTimeoutMsRef.current = DEFAULT_TIMEOUT_MS * enabledPairs.length;
-      importTimeoutRef.current = window.setTimeout(handleTimeout, currentTimeoutMsRef.current);
 
       const results: ImportResult[] = [];
       let aborted = false;
       
       // 順番にインポート実行
       for (let i = 0; i < enabledPairs.length; i++) {
+        if (isCancelledRef.current) {
+          aborted = true;
+          break;
+        }
+
         const pair = enabledPairs[i];
-        resetTimeout(); // 各ペア処理前にタイムアウトリセット
-        
         const result = await importSinglePair(pair, i, enabledPairs.length);
         results.push(result);
         
@@ -454,7 +444,6 @@ const ImportTab = ({ collections }: ImportTabProps) => {
       }
 
       // 結果サマリー
-      clearImportTimeout();
       setIsLoading(false);
       
       // 連続インポートセッション終了
@@ -505,13 +494,44 @@ const ImportTab = ({ collections }: ImportTabProps) => {
       
       window.setTimeout(() => setStatus(null), 6000);
       
+      // インポート完了後にレート制限情報を確認
+      checkRateLimitWarning();
+      
     } catch (err) {
-      clearImportTimeout();
       setIsLoading(false);
       importRunIdRef.current = null; // セッション終了
       setStatus({ type: 'error', text: err instanceof Error ? err.message : 'インポートに失敗しました。' });
+
+      // エラー時もレート制限情報を確認
+      checkRateLimitWarning();
     }
   };
+
+  // レート制限情報を確認し、警告を表示する
+  const checkRateLimitWarning = useCallback(() => {
+    const info: RateLimitInfo | null = getLatestRateLimitInfo();
+    if (!info || info.requestsToday < 0) {
+      setRateLimitWarning(null);
+      return;
+    }
+
+    const usagePercent = (info.requestsToday / info.dailyLimit) * 100;
+
+    if (usagePercent >= 100) {
+      setRateLimitWarning({
+        type: 'error',
+        text: `無料枠の上限（${info.dailyLimit.toLocaleString()}リクエスト/日）に達しました。明日（UTC 0:00）にリセットされます。`,
+      });
+    } else if (usagePercent >= 80) {
+      const remaining = info.dailyLimit - info.requestsToday;
+      setRateLimitWarning({
+        type: 'warning',
+        text: `本日の無料枠の残り約 ${remaining.toLocaleString()} リクエスト（${Math.round(100 - usagePercent)}%）です。`,
+      });
+    } else {
+      setRateLimitWarning(null);
+    }
+  }, []);
 
   // 有効なペアの数を計算
   const enabledPairsCount = collectionDbPairs.filter(p => 
@@ -523,61 +543,6 @@ const ImportTab = ({ collections }: ImportTabProps) => {
       <header>
         <h1 className="font-semibold">Sync Figma Variables from Notion</h1>
       </header>
-
-      <section>
-        <h2 className="text-sm font-semibold mb-4">Notion設定</h2>
-        <div className="grid gap-6">
-          <div>
-            <label className="floating-label">
-              <span>Notion APIキー *</span>
-          </label>
-          <input
-            type="text"
-            autoComplete="off"
-              className="input input-sm input-bordered w-full"
-              placeholder="ntn_xxxxxxxxxxxxx"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            onBlur={saveFormData}
-            required
-          />
-            <small className="text-xs mt-1 block">※Notion IntegrationsからAPIキーを取得してください</small>
-        </div>
-
-          <div>
-            <label className="floating-label">
-              <span>プロキシURL（Cloudflare Workers / https必須）</span>
-            </label>
-            <input
-              type="url"
-              inputMode="url"
-              className="input input-sm input-bordered w-full"
-              placeholder="https://your-worker.your-subdomain.workers.dev"
-              value={proxyUrl}
-              onChange={(e) => setProxyUrl(e.target.value)}
-              onBlur={saveFormData}
-            required
-          />
-            <small className="text-xs mt-1 block">※httpsのみ許可。URLはローカル保存され公開ビルドへは埋め込まれません。</small>
-          </div>
-          <div>
-            <label className="floating-label">
-              <span>プロキシトークン（X-Proxy-Token）</span>
-            </label>
-            <input
-              type="text"
-              autoComplete="off"
-              className="input input-sm input-bordered w-full"
-              placeholder="任意の共有シークレット"
-              value={proxyToken}
-              onChange={(e) => setProxyToken(e.target.value)}
-              onBlur={saveFormData}
-              required
-            />
-            <small className="text-xs mt-1 block">※Cloudflare Worker の環境変数 PROXY_TOKEN と一致させてください。</small>
-          </div>
-        </div>
-      </section>
 
       <section>
         <h2 className="mb-2 text-sm font-semibold">同期ペア設定</h2>
@@ -661,17 +626,86 @@ const ImportTab = ({ collections }: ImportTabProps) => {
         />
       </section>
 
-      <button type="submit" className="btn btn-primary w-full" disabled={isLoading || enabledPairsCount === 0}>
-        {isLoading ? (
-          <>
-            <span className="loading loading-spinner"></span>
-            インポート中...
-          </>
-        ) : (
-          `Notionからインポート${enabledPairsCount > 0 ? ` (${enabledPairsCount}件)` : ''}`
-        )}
-      </button>
-      
+      <section>
+        <h2 className="text-sm font-semibold mb-4">Notion設定</h2>
+        <div className="grid gap-6">
+          <div>
+            <label className="floating-label">
+              <span>Notion APIキー *</span>
+            </label>
+            <input
+              type="text"
+              autoComplete="off"
+              className="input input-sm input-bordered w-full"
+              placeholder="ntn_xxxxxxxxxxxxx"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              onBlur={saveFormData}
+              required
+            />
+            <small className="text-xs mt-1 block">※Notion IntegrationsからAPIキーを取得してください</small>
+          </div>
+
+          <div>
+            <label className="floating-label">
+              <span>プロキシURL（Cloudflare Workers / https必須）</span>
+            </label>
+            <input
+              type="url"
+              inputMode="url"
+              className="input input-sm input-bordered w-full"
+              placeholder="https://your-worker.your-subdomain.workers.dev"
+              value={proxyUrl}
+              onChange={(e) => setProxyUrl(e.target.value)}
+              onBlur={saveFormData}
+              required
+            />
+            <small className="text-xs mt-1 block">※httpsのみ許可。URLはローカル保存され公開ビルドへは埋め込まれません。</small>
+          </div>
+          <div>
+            <label className="floating-label">
+              <span>プロキシトークン（X-Proxy-Token）</span>
+            </label>
+            <input
+              type="text"
+              autoComplete="off"
+              className="input input-sm input-bordered w-full"
+              placeholder="任意の共有シークレット"
+              value={proxyToken}
+              onChange={(e) => setProxyToken(e.target.value)}
+              onBlur={saveFormData}
+              required
+            />
+            <small className="text-xs mt-1 block">※Cloudflare Worker の環境変数 PROXY_TOKEN と一致させてください。</small>
+          </div>
+        </div>
+      </section>
+
+      {/* レート制限警告バナー */}
+      {rateLimitWarning && (
+        <div className={`alert ${rateLimitWarning.type === 'error' ? 'alert-error' : 'alert-warning'} text-xs py-2`}>
+          <span>{rateLimitWarning.text}</span>
+          <button
+            type="button"
+            className="btn btn-ghost btn-xs"
+            onClick={() => setRateLimitWarning(null)}
+            aria-label="閉じる"
+          >
+            &times;
+          </button>
+        </div>
+      )}
+
+      {isLoading ? (
+        <button type="button" className="btn btn-error w-full" onClick={handleCancel}>
+          キャンセル（{formatElapsed(elapsedSeconds)} 経過）
+        </button>
+      ) : (
+        <button type="submit" className="btn btn-primary w-full" disabled={enabledPairsCount === 0}>
+          {`Notionからインポート${enabledPairsCount > 0 ? ` (${enabledPairsCount}件)` : ''}`}
+        </button>
+      )}
+
       {enabledPairsCount === 0 && !isLoading && (
         <p className="text-xs text-warning text-center">
           インポート対象のペアを選択してください

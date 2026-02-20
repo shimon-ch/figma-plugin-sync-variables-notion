@@ -1,4 +1,5 @@
 import { logger } from '@/shared/logger';
+import { RateLimitInfo } from '@/shared/types';
 
 interface NotionDatabaseQueryParams {
   sorts?: Array<{ timestamp?: string; property?: string; direction: 'ascending' | 'descending' }>;
@@ -11,6 +12,64 @@ interface NotionQueryResponse {
   results: unknown[];
   has_more: boolean;
   next_cursor: string | null;
+}
+
+// 最新のレート制限情報（モジュールレベルで保持）
+let _latestRateLimitInfo: RateLimitInfo | null = null;
+
+/**
+ * 最新のレート制限情報を取得する
+ * プロキシからレスポンスを受け取るたびに更新される
+ */
+export function getLatestRateLimitInfo(): RateLimitInfo | null {
+  return _latestRateLimitInfo;
+}
+
+/**
+ * レスポンスヘッダーからレート制限情報を抽出・更新する
+ */
+function updateRateLimitInfo(response: Response): RateLimitInfo | null {
+  const plan = response.headers.get('X-Proxy-Plan');
+  const dailyLimitStr = response.headers.get('X-Proxy-Daily-Limit');
+  const requestsTodayStr = response.headers.get('X-Proxy-Requests-Today');
+
+  if (!plan && !dailyLimitStr) return _latestRateLimitInfo;
+
+  const info: RateLimitInfo = {
+    plan: plan || 'unknown',
+    dailyLimit: dailyLimitStr ? parseInt(dailyLimitStr, 10) : 100000,
+    requestsToday: requestsTodayStr ? parseInt(requestsTodayStr, 10) : -1,
+  };
+
+  _latestRateLimitInfo = info;
+  logger.log(`📊 Proxy rate limit: ${info.requestsToday}/${info.dailyLimit} (${info.plan})`);
+  return info;
+}
+
+/**
+ * Cloudflare のレート制限エラー (1015/1027) や非JSONレスポンスを検出し、
+ * ユーザーにわかりやすいエラーメッセージを生成する
+ */
+function detectCloudflareRateLimitError(status: number, body: string): string | null {
+  if (status === 429) {
+    return 'プロキシの無料枠リクエスト上限に達しました。明日（UTC 0:00）にリセットされます。';
+  }
+
+  // Cloudflare エラーコード 1015 (バースト上限) / 1027 (日次上限)
+  if (body.includes('error code: 1015')) {
+    return 'プロキシへのリクエストが集中しています（1,000リクエスト/分の上限）。少し待ってから再試行してください。';
+  }
+  if (body.includes('error code: 1027')) {
+    return 'プロキシの無料枠（100,000リクエスト/日）の上限に達しました。明日（UTC 0:00）にリセットされます。';
+  }
+
+  // 非JSONレスポンス（Cloudflare エラーページ）の検出
+  const contentIsHtml = body.trimStart().startsWith('<!') || body.trimStart().startsWith('<html');
+  if (contentIsHtml) {
+    return 'プロキシから予期しないレスポンスを受信しました。無料枠の上限に達した可能性があります。';
+  }
+
+  return null;
 }
 
 function assertHttps(url: string) {
@@ -68,13 +127,33 @@ export async function fetchNotionData(
       })
     });
 
+    // レート制限情報を更新
+    updateRateLimitInfo(response);
+
     if (!response.ok) {
       const errorText = await response.text();
+
+      // Cloudflare レート制限エラーの検出
+      const rateLimitMsg = detectCloudflareRateLimitError(response.status, errorText);
+      if (rateLimitMsg) {
+        logger.error('⚠️ Rate limit error:', rateLimitMsg);
+        throw new Error(rateLimitMsg);
+      }
+
       logger.error('❌ Notion API error:', errorText);
       throw new Error(`Notion API error: ${response.status} - ${errorText}`);
     }
 
-    const data: NotionQueryResponse = await response.json();
+    // JSONパースの安全な処理（bodyは一度しか読めないため事前にcloneを作成）
+    const clonedResponse = response.clone();
+    let data: NotionQueryResponse;
+    try {
+      data = await response.json();
+    } catch {
+      const text = await clonedResponse.text();
+      const rateLimitMsg = detectCloudflareRateLimitError(response.status, text);
+      throw new Error(rateLimitMsg || 'プロキシから不正なレスポンスを受信しました。');
+    }
     
     if (data.results && Array.isArray(data.results)) {
       allResults = allResults.concat(data.results);
@@ -125,13 +204,34 @@ export async function fetchNotionPage(apiKey: string, pageId: string, proxyUrl: 
     })
   });
 
+  // レート制限情報を更新
+  updateRateLimitInfo(response);
+
   if (!response.ok) {
     const errorText = await response.text();
+
+    // Cloudflare レート制限エラーの検出
+    const rateLimitMsg = detectCloudflareRateLimitError(response.status, errorText);
+    if (rateLimitMsg) {
+      logger.error('⚠️ Rate limit error:', rateLimitMsg);
+      throw new Error(rateLimitMsg);
+    }
+
     logger.error('❌ Notion get page error:', errorText);
     throw new Error(`Notion get page error: ${response.status} - ${errorText}`);
   }
 
-  const data = await response.json();
+  // JSONパースの安全な処理（bodyは一度しか読めないため事前にcloneを作成）
+  const clonedPageResponse = response.clone();
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    const text = await clonedPageResponse.text();
+    const rateLimitMsg = detectCloudflareRateLimitError(response.status, text);
+    throw new Error(rateLimitMsg || 'プロキシから不正なレスポンスを受信しました。');
+  }
+
   logger.log('✅ Notion page received:', data?.id);
   return data;
 }

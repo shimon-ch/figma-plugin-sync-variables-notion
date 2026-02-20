@@ -1,9 +1,13 @@
 // Figmaプラグインのメインコントローラー
 import { handleImportFromNotion } from './handlers/syncHandler';
-import { MessageType, ExportSettings } from '../shared/types';
+import { scanBrokenReferences, remapVariables } from './handlers/remapHandler';
+import { MessageType, ExportSettings, RemapMapping, ScanResult } from '../shared/types';
 import { logger } from '../shared/logger';
 import { obfuscateApiKey, deobfuscateApiKey } from '../shared/security';
 import { exportToDesignTokens } from './utils/exportUtils';
+
+// 最新のスキャン結果を保持（remap 時に参照）
+let latestScanResult: ScanResult | null = null;
 
 // UIを表示
 figma.showUI(__html__, {
@@ -307,6 +311,62 @@ figma.ui.onmessage = async (msg: any) => {
         }
         break;
         
+      case MessageType.SCAN_BROKEN_REFS:
+        try {
+          logger.log('🔍 Scanning for broken variable references...');
+          const scanResult = await scanBrokenReferences();
+          latestScanResult = scanResult;
+          
+          figma.ui.postMessage({
+            type: MessageType.BROKEN_REFS_RESULT,
+            data: scanResult
+          });
+          
+          logger.log(`✅ Scan complete: ${scanResult.brokenGroups.length} broken variable IDs found`);
+        } catch (scanError) {
+          logger.error('❌ Scan error:', scanError);
+          figma.ui.postMessage({
+            type: MessageType.ERROR,
+            data: {
+              message: scanError instanceof Error ? scanError.message : 'スキャンに失敗しました'
+            }
+          });
+        }
+        break;
+
+      case MessageType.REMAP_VARIABLES:
+        try {
+          const mappings = msg.data as RemapMapping[];
+          
+          if (!latestScanResult) {
+            throw new Error('スキャン結果がありません。先にスキャンを実行してください。');
+          }
+          
+          logger.log(`🔄 Remapping ${mappings.length} variable mapping(s)...`);
+          const remapResult = await remapVariables(mappings, latestScanResult);
+          
+          figma.ui.postMessage({
+            type: MessageType.REMAP_RESULT,
+            data: remapResult
+          });
+          
+          // 成功時のみスキャン結果をクリア（失敗時はリトライできるよう保持）
+          if (remapResult.success) {
+            latestScanResult = null;
+          }
+          
+          logger.log(`✅ Remap complete: ${remapResult.totalRemapped} references updated`);
+        } catch (remapError) {
+          logger.error('❌ Remap error:', remapError);
+          figma.ui.postMessage({
+            type: MessageType.ERROR,
+            data: {
+              message: remapError instanceof Error ? remapError.message : 'リマップに失敗しました'
+            }
+          });
+        }
+        break;
+
       case MessageType.CLOSE_PLUGIN:
         figma.closePlugin();
         break;

@@ -25,7 +25,13 @@ export const MessageType = {
   PROGRESS: 'PROGRESS',
   
   // 操作ステータス（統合用）
-  OPERATION_STATUS: 'OPERATION_STATUS'
+  OPERATION_STATUS: 'OPERATION_STATUS',
+
+  // Remap関連
+  SCAN_BROKEN_REFS: 'SCAN_BROKEN_REFS',
+  BROKEN_REFS_RESULT: 'BROKEN_REFS_RESULT',
+  REMAP_VARIABLES: 'REMAP_VARIABLES',
+  REMAP_RESULT: 'REMAP_RESULT'
 } as const;
 
 export type MessageType = typeof MessageType[keyof typeof MessageType];
@@ -52,7 +58,11 @@ export enum MessageTypeEnum {
   SUCCESS = 'SUCCESS',
   LOADING = 'LOADING',
   PROGRESS = 'PROGRESS',
-  OPERATION_STATUS = 'OPERATION_STATUS'
+  OPERATION_STATUS = 'OPERATION_STATUS',
+  SCAN_BROKEN_REFS = 'SCAN_BROKEN_REFS',
+  BROKEN_REFS_RESULT = 'BROKEN_REFS_RESULT',
+  REMAP_VARIABLES = 'REMAP_VARIABLES',
+  REMAP_RESULT = 'REMAP_RESULT'
 }
 
 export interface PluginMessage {
@@ -150,6 +160,13 @@ export interface SavedFormData {
   field_mappings?: FieldMapping[];  // フィールドマッピング設定
 }
 
+// プロキシのレート制限情報
+export interface RateLimitInfo {
+  requestsToday: number;   // 本日のおおよそのリクエスト数 (-1 = 取得不可)
+  dailyLimit: number;       // 日次上限
+  plan: string;             // プラン名 (例: "free")
+}
+
 // Export設定
 export interface ExportSettings {
   collectionIds: string[];  // エクスポート対象のコレクションID
@@ -161,4 +178,58 @@ export interface ExportResult {
   json?: string;          // W3C Design Tokens形式のJSON文字列
   tokenCount?: number;    // エクスポートされたトークン数
   error?: string;
+}
+
+// --- Remap関連の型定義 ---
+
+// バインド先の種類（ノードレベル or Paint レベル）
+export type BindingLocation =
+  | { kind: 'node'; field: string }
+  | { kind: 'fill'; paintIndex: number }
+  | { kind: 'stroke'; paintIndex: number };
+
+// 壊れた参照1件の情報
+export interface BrokenReference {
+  nodeId: string;
+  nodeName: string;
+  nodeType: string;
+  location: BindingLocation;
+  brokenVariableId: string;
+}
+
+// 候補 Variable の情報（UI 表示用にシリアライズ可能な形式）
+export interface CandidateVariable {
+  id: string;
+  name: string;
+  resolvedType: string;
+  collectionName: string;
+}
+
+// 同じ壊れた Variable ID でグルーピングしたもの
+export interface BrokenReferenceGroup {
+  brokenVariableId: string;
+  brokenVariableName: string;
+  affectedCount: number;
+  references: BrokenReference[];
+  candidates: CandidateVariable[];
+  suggestedReplacementId?: string; // 同名候補が見つかった場合の自動マッチ
+}
+
+// スキャン結果
+export interface ScanResult {
+  totalNodesScanned: number;
+  brokenGroups: BrokenReferenceGroup[];
+}
+
+// ユーザーが選択した置換マッピング
+export interface RemapMapping {
+  brokenVariableId: string;
+  replacementVariableId: string;
+}
+
+// Remap 結果
+export interface RemapResult {
+  success: boolean;
+  totalRemapped: number;
+  errors: string[];
 }
